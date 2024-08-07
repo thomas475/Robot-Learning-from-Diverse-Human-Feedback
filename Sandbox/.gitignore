@@ -93,11 +93,3 @@ data/*/*
 venv/*/*
 venv/*
 venv/
-
-# Ingored Folders
-AlignDiff-ICRL2024
-docs
-Generative-Imitation-Learning-main
-puppet
-relay-policy-learning
-screenshots
