@@ -1,0 +1,34 @@
+# environment
+domain: antmaze
+env: antmaze-medium-play-v2
+fake_label: true
+modality: 'state'  # state/pixel
+structure: 'transformer1' # mlp/transformer1/transformer2/transformer3
+clip_action: 0.999  # only d4rl
+stack: false  # stack frame in pixel benchmark, only atari
+
+# feedback type
+feedback_type: ['comparative']
+
+# learning
+ensemble_size: 1
+batch_size: 64
+n_epochs: 100
+num_query: 2000
+len_query: 200
+data_dir: "/media/sf_Shared/Clean-Offline-RLHF/crowdsource_human_labels/"
+
+# misc
+seed: 888
+exp_name: transformer
+save_model: true
+use_wandb: false
+wandb_project: Uni-RLHF
+wandb_entity: xiguapi
+
+
+# transformer structure
+d_model: 256
+nhead: 4
+num_layers: 1
+max_seq_len: 200
