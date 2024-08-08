@@ -1,5 +1,5 @@
-d4rl.egg==info
-d4rl_atari==0.1
+git+https://github.com/Farama-Foundation/d4rl@master#egg=d4rl
+git+https://github.com/takuseno/d4rl-atari
 gym==0.23.1
 ml_collections==0.1.1
 numpy==2.0.1
