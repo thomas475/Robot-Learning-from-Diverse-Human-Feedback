@@ -29,12 +29,13 @@ from rlhf.utils import reward_from_preference
 @dataclass
 class TrainConfig:
     # Experiment
-    device: str = "cuda:0"
-    env: str = "hopper-medium-replay-v2"  # OpenAI gym environment name
+    device: str = "cpu"
+    env: str = "kitchen-mixed-v0"  # OpenAI gym environment name
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
     eval_freq: int = int(5e3)  # How often (time steps) we evaluate
     n_episodes: int = 10  # How many episodes run during evaluation
     max_timesteps: int = int(1e6)  # Max time steps to run environment
+    # max_timesteps: int = int(10e3)  # Max time steps to run environment
     checkpoints_path: Optional[str] = None  # Save path
     load_model: str = ""  # Model load file name, "" doesn't load
     # TD3
@@ -54,7 +55,7 @@ class TrainConfig:
     project: str = "Uni-RLHF"
     group: str = "TD3BC"
     name: str = "exp"
-    reward_model_path: str = "path/to/reward_model"
+    reward_model_path: str = "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/rlhf/reward_model_logs/kitchen-mixed-v0/transformer/epoch_100_query_5_len_200_seed_888/models/reward_model.pt"
     reward_model_type: str = "mlp"
 
 

@@ -34,7 +34,7 @@ def gen_net(in_size=1, out_size=1, H=128, n_layers=3, activation='tanh'):
 
 class RewardModel(object):
     def __init__(self, task, observation_dim, action_dim, ensemble_size=3, lr=3e-4, activation="tanh", logger=None,
-                 device="cuda"):
+                 device="cpu"):
         self.task = task
         self.observation_dim = observation_dim  # state: env.observation_space.shape[0]
         self.action_dim = action_dim  # state: env.action_space.shape[0]
@@ -310,7 +310,7 @@ class TransformerRewardModel(RewardModel):
                  task, observation_dim, action_dim, structure_type="transformer1",
                  ensemble_size=3, lr=0.0003, activation="tanh",
                  d_model=256, nhead=4, num_layers=1, max_seq_len=100,
-                 logger=None, device="cuda"):
+                 logger=None, device="cpu"):
         self.structure_type = structure_type
         self.d_model = d_model
         self.nhead = nhead

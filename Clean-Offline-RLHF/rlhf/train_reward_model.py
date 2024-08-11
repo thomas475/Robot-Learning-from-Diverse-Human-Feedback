@@ -22,7 +22,6 @@ def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
 
 
 def get_d4rl_dataset(env):
@@ -208,13 +207,13 @@ def _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_
     if cfg.modality == "state":
         if cfg.structure == 'mlp':
             reward_model = RewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=3e-4,
-                                       activation="tanh", logger=L, device="cuda:0")
+                                       activation="tanh", logger=L)
         elif "transformer" in cfg.structure:
             reward_model = TransformerRewardModel(
                 cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-5,
                 structure_type=cfg.structure, d_model=cfg.d_model, num_layers=cfg.num_layers, nhead=cfg.nhead,
                 max_seq_len=cfg.max_seq_len,
-                activation="tanh", logger=L, device="cuda:0")
+                activation="tanh", logger=L)
 
         pref_dataset = load_queries_with_indices(
             dataset, cfg.num_query, cfg.len_query, saved_indices=[human_indices_1, human_indices_2],
@@ -224,7 +223,7 @@ def _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_
                            batch_size=cfg.batch_size)
     else:
         reward_model = CNNRewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-4,
-                                      activation=None, logger=L, device='cuda')
+                                      activation=None, logger=L)
         N_DATASET_PARTITION = 5
         pref_dataset = [load_queries_with_indices(
             dataset, cfg.num_query // N_DATASET_PARTITION, cfg.len_query,

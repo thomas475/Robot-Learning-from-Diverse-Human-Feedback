@@ -1,9 +1,9 @@
 # environment
-domain: antmaze
-env: antmaze-medium-play-v2
-fake_label: true
+domain: d4rl
+env: kitchen-mixed-v0
+fake_label: false
 modality: 'state'  # state/pixel
-structure: 'transformer1' # mlp/transformer1/transformer2/transformer3
+structure: 'mlp' # mlp/transformer1/transformer2/transformer3
 clip_action: 0.999  # only d4rl
 stack: false  # stack frame in pixel benchmark, only atari
 
@@ -14,9 +14,9 @@ feedback_type: ['comparative']
 ensemble_size: 1
 batch_size: 64
 n_epochs: 100
-num_query: 2000
+num_query: 5 # original 2000
 len_query: 200
-data_dir: "/media/sf_Shared/Clean-Offline-RLHF/crowdsource_human_labels/"
+data_dir: "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/crowdsource_human_labels/"
 
 # misc
 seed: 888
