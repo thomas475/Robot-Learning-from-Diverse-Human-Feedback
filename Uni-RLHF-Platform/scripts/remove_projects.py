@@ -41,7 +41,6 @@ def remove_projects(project_ids='all', project_statuses='all'):
     for project_id, project_name, status in projects:
         if project_id in project_ids and status in project_statuses:
             project_list.append(project_name)
-            cursor.execute("DELETE FROM Project WHERE project_id = %s", (project_id,))
             cursor.execute("DELETE FROM UserProject WHERE project_id = %s", (project_id,))
             cursor.execute("SELECT query_id FROM Query WHERE project_id = %s", (project_id,))
             query_ids = [row[0] for row in cursor.fetchall()]
@@ -49,6 +48,7 @@ def remove_projects(project_ids='all', project_statuses='all'):
                 format_strings = ','.join(['%s'] * len(query_ids))
                 cursor.execute(f"DELETE FROM QueryAnnotator WHERE query_id IN ({format_strings})", tuple(query_ids))
             cursor.execute("DELETE FROM Query WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM Project WHERE project_id = %s", (project_id,))
 
     if input('Do you want to remove the following projects ? [Y/n]\n    ' + '\n    '.join(project_list) + '\n') == 'Y':
         connection.commit()
