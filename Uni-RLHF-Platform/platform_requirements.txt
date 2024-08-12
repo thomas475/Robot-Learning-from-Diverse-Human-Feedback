@@ -15,7 +15,7 @@ jsonschema==4.23.0
 matplotlib==3.9.1.post1
 git+https://github.com/aravindr93/mjrl.git
 mujoco_py==2.1.2.14
-numpy==2.0.1
+numpy==1.23.1
 onnx==1.16.2
 #onnxruntime==1.18.1
 opencv_python==4.9.0.80
