@@ -36,6 +36,32 @@ class Project(db.Model):
     question = db.Column(db.Text)
     is_deleted = db.Column(db.Boolean, default=False)
 
+class Query(db.Model):
+    __tablename__ = 'Query'
+    query_id = db.Column(db.String(80), primary_key=True)
+    project_id = db.Column(db.String(80), db.ForeignKey('Project.project_id'))
+    completion_time = db.Column(db.DateTime)
+    marked_num = db.Column(db.Integer)
+    skip_num = db.Column(db.Integer)
+    video_info = db.Column(db.Text)
+    video_url = db.Column(db.String(200))
+    label_info = db.Column(db.Text)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+class QueryAnnotator(db.Model):
+    __tablename__ = 'QueryAnnotator'
+    query_annotator_id = db.Column(db.Integer, primary_key=True)
+    query_id = db.Column(db.String(80), db.ForeignKey('Query.query_id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('User.user_id'))
+    is_deleted = db.Column(db.Boolean, default=False)
+
+class UserProject(db.Model):
+    __tablename__ = 'UserProject'
+    user_project_id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.String(80), db.ForeignKey('Project.project_id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('User.user_id'))
+    is_deleted = db.Column(db.Boolean, default=False)
+
 def generate_video(cfg, project_id):
     context = {}
     exec(f"from uni_rlhf.datasets import {cfg['mode']}_{cfg['domain'].lower()} as dataset_module", context)
@@ -49,51 +75,98 @@ def generate_video(cfg, project_id):
                                    save_dir=cfg['save_dir'])
         video_info_list, video_url_list, query_id_list = dataset.generate_video_resources()
 
-# domain = 'd4rl'
-# task = 'mujoco'
-# environment_name = 'hopper-medium-v2'
-#
-# domain = 'd4rl'
-# task = 'antmaze'
-# environment_name = 'antmaze-umaze-v2'
+def video_test():
+    # domain = 'd4rl'
+    # task = 'mujoco'
+    # environment_name = 'hopper-medium-v2'
+    #
+    # domain = 'd4rl'
+    # task = 'antmaze'
+    # environment_name = 'antmaze-umaze-v2'
 
-domain = 'd4rl'
-task = 'kitchen'
-environment_name = 'kitchen-complete-v0'
+    domain = 'd4rl'
+    task = 'kitchen'
+    environment_name = 'kitchen-complete-v0'
 
-test_project = Project(
-    project_id=str(int(time.time())),
-    project_name='Test Project',
-    description='Test description',
-    due_time=datetime.utcnow(),
-    visibility=1,
-    dataset_path='',
-    domain=domain,
-    task=task,
-    environment_name=environment_name,
-    instruction='<p>Enter the project instruction for annotators.</p>',
-    mode='offline',
-    sampler_type='random',
-    feedback_type='evaluative',
-    query_num=1,
-    query_length=200,
-    video_width=200,
-    video_height=200,
-    fps=30,
-    creator=1,
-    create_time=datetime.utcnow(),
-    status='active',
-    annotation_num=0,
-    question='test_question'
-)
+    test_project = Project(
+        project_id=str(int(time.time())),
+        project_name='Test Project',
+        description='Test description',
+        due_time=datetime.utcnow(),
+        visibility=1,
+        dataset_path='',
+        domain=domain,
+        task=task,
+        environment_name=environment_name,
+        instruction='<p>Enter the project instruction for annotators.</p>',
+        mode='offline',
+        sampler_type='random',
+        feedback_type='evaluative',
+        query_num=1,
+        query_length=200,
+        video_width=200,
+        video_height=200,
+        fps=30,
+        creator=1,
+        create_time=datetime.utcnow(),
+        status='active',
+        annotation_num=0,
+        question='test_question'
+    )
 
-# cfg = {key: value for key, value in test_project.__dict__.items()}
-cfg = to_dict(test_project)
-cfg['save_dir'] = f"{'./uni_rlhf/vue_part/src/assets/video/'}{test_project.project_id}_{test_project.environment_name}_{test_project.mode}_{test_project.feedback_type}"
+    # cfg = {key: value for key, value in test_project.__dict__.items()}
+    cfg = to_dict(test_project)
+    cfg['save_dir'] = f"{'./uni_rlhf/vue_part/src/assets/video/'}{test_project.project_id}_{test_project.environment_name}_{test_project.mode}_{test_project.feedback_type}"
 
-generate_video(cfg, test_project.project_id)
+    generate_video(cfg, test_project.project_id)
 
-print('Video stored in ' + cfg['save_dir'])
+    print('Video stored in ' + cfg['save_dir'])
 
-import os
-os.system('xdg-open "%s"' % cfg['save_dir'])
+    import os
+    os.system('xdg-open "%s"' % cfg['save_dir'])
+
+def database_test():
+    from flask import Flask
+    from flask_sqlalchemy import SQLAlchemy
+    from flask_login import LoginManager
+    from flask_cors import CORS
+    from celery import Celery
+    # from uni_rlhf.models import db
+    import os
+
+    app = Flask(__name__)
+
+    # Database configuration
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:password@localhost/uni_rlhf'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+
+    # Login manager configuration
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+
+    # Flask-CORS configuration
+    cors = CORS(app, supports_credentials=True)
+
+    # Celery configuration
+    app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+    app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+    celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+    celery.conf.update(app.config)
+
+    # Application Secret Key
+    app.secret_key = 'your_secret_key'
+
+    BASE_URL = "./uni_rlhf/vue_part/src/assets/video/"
+    UPLOAD_DATASETS_URL = './uni_rlhf/datasets/temp_datasets'
+    EXPORTED_PROJECT_URL = os.path.join(os.getcwd(), 'uni_rlhf/datasets/temp_datasets')
+
+    with app.app_context():
+        project_id = "nyEaLWQrtLTQyW2CDSJ7TS"
+
+        UserProject.query.filter_by(project_id=project_id).delete()
+        query_ids = [qid for qid, in Query.query.with_entities(Query.query_id).filter_by(project_id=project_id).all()]
+        QueryAnnotator.query.filter(QueryAnnotator.query_id.in_(query_ids)).delete(synchronize_session=False)
+        Query.query.filter_by(project_id=project_id).delete()
+
+database_test()

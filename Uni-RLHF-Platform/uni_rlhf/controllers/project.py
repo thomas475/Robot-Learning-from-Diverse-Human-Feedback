@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 import shortuuid
 import json
-from uni_rlhf.models import db, User, Project, Query,UserProject
+from uni_rlhf.models import db, User, Project, Query, UserProject, QueryAnnotator
 from uni_rlhf.config import app, db, celery, BASE_URL, UPLOAD_DATASETS_URL
 from uni_rlhf.utils import to_dict, allowed_file
 from flask import jsonify
@@ -308,7 +308,9 @@ def delete_project(project_id, username):
         return jsonify({'username': username, 'message': 'No project found'}), 404
 
     UserProject.query.filter_by(project_id=project_id).delete()
-    QueryAnnotator.query.filter_by(project_id=project_id).delete()
+    # QueryAnnotator.query.filter_by(project_id=project_id).delete()
+    query_ids = [qid for qid, in Query.query.with_entities(Query.query_id).filter_by(project_id=project_id).all()]
+    QueryAnnotator.query.filter(QueryAnnotator.query_id.in_(query_ids)).delete(synchronize_session=False)
     Query.query.filter_by(project_id=project_id).delete()
 
     db.session.delete(project)

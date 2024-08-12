@@ -4,7 +4,9 @@ module.exports = defineConfig({
   transpileDependencies: [
     'vuetify'
   ],
-  devServer: { historyApiFallback: true}
+  devServer: {
+    historyApiFallback: true
+  }
   // devServer: {
   //   port:8502
     // proxy: {

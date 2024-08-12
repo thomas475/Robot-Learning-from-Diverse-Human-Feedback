@@ -109,7 +109,8 @@ def export_label(project_id):
 
     if not os.path.exists(EXPORTED_PROJECT_URL):
         os.makedirs(EXPORTED_PROJECT_URL)
-    zip_filename = os.path.join(EXPORTED_PROJECT_URL, f'export_{project_dict["project_name"]}.zip')
+    # zip_filename = os.path.join(EXPORTED_PROJECT_URL, f'export_{project_dict["project_name"]}.zip')
+    zip_filename = os.path.join(EXPORTED_PROJECT_URL, f'{project_dict["environment_name"]}_{project_dict["feedback_type"]}_human_labels.zip')
     with ZipFile(zip_filename, 'w') as zipf:
         zipf.write('meta_data.json')
         zipf.write('label.csv')
