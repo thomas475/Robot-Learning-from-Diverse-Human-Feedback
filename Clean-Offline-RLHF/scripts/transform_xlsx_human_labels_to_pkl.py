@@ -82,12 +82,18 @@ def main(args):
                 human_label = human_label.flatten()
         if feedback_type == 'keypoint':
             human_label = []
-            max_n_keypoints = max(len(query['1']) for query in parsed_labels)
-            for query in parsed_labels:
-                human_label.append(query['1'] + [np.nan] * (max_n_keypoints - len(query['1'])))
+            for query, label in enumerate(parsed_labels):
+                human_label.extend([start_indices[query] + keypoint for keypoint in label['1']])
             human_label = np.array(human_label)
         if feedback_type == 'visual':
-            raise NotImplementedError()
+            human_label = {}
+            for query, label in enumerate(parsed_labels):
+                for offset in label['1']:
+                    keypoint = start_indices[query] + int(offset)
+                    if keypoint not in human_label:
+                        human_label[keypoint] = []
+                    for bounding_box in label['1'][offset]:
+                        human_label[keypoint].append(bounding_box)
     else:
         # legacy code -- only works for comparative feedback
         mask = df['video'].str.contains(env_name)
@@ -130,7 +136,7 @@ def main(args):
         count_0 = np.size(human_label) - np.count_nonzero(human_label)
         count_minus_1 = np.count_nonzero(human_label == -1)
 
-        print(f"domain_{domain}_env_{env_name}:")
+        print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         print("left better (0):", count_0)
         print("right better (1):", count_1)
         print("equal (-1):", count_minus_1)
@@ -142,14 +148,16 @@ def main(args):
 
         human_label = np.interp(human_label, (human_label.min(), human_label.max()), (0, 1))
 
-        print(f"domain_{domain}_env_{env_name}:")
+        print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         for rating, frequency in zip(ratings, frequencies):
             print("rating " + str(rating) + ":", frequency)
     elif feedback_type == 'keypoint':
-        print(f"domain_{domain}_env_{env_name}:")
-        print("keypoints:", np.sum(~np.isnan(human_label)))
+        print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
+        print("keypoints:", len(human_label))
     elif feedback_type == 'visual':
-        raise NotImplementedError()
+        print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
+        print("keypoints:", len(human_label))
+        print("bounding boxes:", len([bounding_box for bounding_box in human_label[keypoint] for keypoint in human_label]))
 
     save_dir = os.path.join(save_dir, f"{env_name}_human_labels")
     identifier = str(uuid.uuid4().hex)
@@ -162,9 +170,11 @@ def main(args):
     if feedback_type in ['comparative', 'attribute']:
         assert start_indices_1.shape[0] == start_indices_2.shape[0] == human_label.shape[0] == \
                num_query, f"{env_name}: {start_indices_1.shape[0]} / {human_label.shape[0]}"
-    else:
+    elif feedback_type in ['evaluative']:
         assert start_indices.shape[0] == human_label.shape[0] == \
                num_query, f"{env_name}: {start_indices.shape[0]} / {human_label.shape[0]}"
+    elif feedback_type in ['keypoint', 'visual']:
+        pass
 
     # with open(os.path.join(save_dir, "indices_1" + suffix + ".pkl"), "wb") as f:
     #     pickle.dump(start_indices_1, f)
@@ -180,9 +190,13 @@ def main(args):
             (os.path.join(save_dir, "indices_2" + suffix + ".pkl"), start_indices_2),
             (os.path.join(save_dir, "human_label" + suffix + ".pkl"), human_label)
         ]
-    else:
+    elif feedback_type in ['evaluative']:
         paths_and_data = [
             (os.path.join(save_dir, "indices" + suffix + ".pkl"), start_indices),
+            (os.path.join(save_dir, "human_label" + suffix + ".pkl"), human_label)
+        ]
+    elif feedback_type in ['keypoint', 'visual']:
+        paths_and_data = [
             (os.path.join(save_dir, "human_label" + suffix + ".pkl"), human_label)
         ]
 
@@ -192,7 +206,7 @@ def save_transformed_output(paths_and_data):
     for path, data in paths_and_data:
         with open(path, "wb") as f:
             pickle.dump(data, f)
-    print("save query indices and human labels.")
+    print("saved transformed feedback data.")
 
 
 if __name__ == "__main__":
