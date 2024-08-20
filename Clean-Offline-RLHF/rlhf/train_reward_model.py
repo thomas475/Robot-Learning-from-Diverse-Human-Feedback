@@ -193,16 +193,22 @@ def train(cfg):
     else:
         suffix = 'human_labels'
 
-    if cfg.feedback_type:
-        for feedback_type in cfg.feedback_type:
-            human_indices_1, human_indices_2, label_file = _load_data(cfg, suffix, feedback_type)
-            _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_file, observation_dim)
+    if not 'feedback_type' in cfg or not cfg.feedback_type:
+        cfg['feedback_type'] = ['comparative']
+    for feedback_type in cfg.feedback_type:
+        _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
+
+
+def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_type):
+    if feedback_type in ['comparative', 'attribute']:
+        human_indices_1, human_indices_2, human_labels = label_data
+    elif feedback_type in ['evaluative']:
+        human_indices, human_labels = label_data
+    elif feedback_type in ['keypoint', 'visual']:
+        human_labels = label_data
     else:
-        human_indices_1, human_indices_2, label_file = _load_data(cfg, suffix)
-        _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_file, observation_dim)
+        raise ValueError("Invalid feedback type:", feedback_type)
 
-
-def _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_file, observation_dim):
     # train reward model
     if cfg.modality == "state":
         if cfg.structure == 'mlp':
@@ -217,7 +223,7 @@ def _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_
 
         pref_dataset = load_queries_with_indices(
             dataset, cfg.num_query, cfg.len_query, saved_indices=[human_indices_1, human_indices_2],
-            saved_labels=label_file, scripted_teacher=cfg.fake_label, modality=cfg.modality)
+            saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality)
         reward_model.train(n_epochs=cfg.n_epochs, pref_dataset=pref_dataset,
                            data_size=pref_dataset["observations"].shape[0],
                            batch_size=cfg.batch_size)
@@ -228,7 +234,7 @@ def _train(L, action_dim, cfg, dataset, human_indices_1, human_indices_2, label_
         pref_dataset = [load_queries_with_indices(
             dataset, cfg.num_query // N_DATASET_PARTITION, cfg.len_query,
             saved_indices=[human_indices_1, human_indices_2],
-            saved_labels=label_file, scripted_teacher=cfg.fake_label, modality=cfg.modality, partition_idx=p_idx)
+            saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality, partition_idx=p_idx)
             for p_idx in range(N_DATASET_PARTITION)]
         # data_size = None means computing data size in function.
         reward_model.split_train(n_epochs=cfg.n_epochs, pref_dataset=pref_dataset,
@@ -245,25 +251,70 @@ def _load_data(cfg, suffix, feedback_type=None):
         data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_{suffix}")
     print(f"Load saved indices from {data_dir}.")
     if os.path.exists(data_dir):
-        suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
+        suffix = f"domain_{cfg.domain}_env_{cfg.env}"
+        # suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
         matched_file = []
         for file_name in os.listdir(data_dir):
             print(suffix)
             print(file_name)
             if suffix in file_name:
-                # print(file_name)
                 matched_file.append(file_name)
-        label_file, indices_1_file, indices_2_file = sorted(matched_file)
+        
+        # unpickle transformed human labels 
+        unpickled_data = {}
+        for file in matched_file:
+            file_name = os.path.splitext(os.path.basename(file))[0]
+            data_type = file_name.split('_domain')[0]
+            identifier = file_name.split('_')[-1]
+            if identifier not in unpickled_data:
+                unpickled_data[identifier] = {}
+            with open(os.path.join(data_dir, file), "rb") as fp:  # Unpickling
+                unpickled_data[identifier][data_type] = pickle.load(fp)
+        
+        # concat data if multiple datasets are given
+        concatenated_unpickled_data = {}
+        for identifier in unpickled_data:
+            for data_type in unpickled_data[identifier]:
+                if data_type not in concatenated_unpickled_data:
+                    if isinstance(unpickled_data[identifier][data_type], dict):
+                        concatenated_unpickled_data[data_type] = {}
+                    else:
+                        initial_shape = (0,)
+                        if len(unpickled_data[identifier][data_type].shape) > 1:
+                            initial_shape += unpickled_data[identifier][data_type].shape[1:]
+                        concatenated_unpickled_data[data_type] = np.empty(initial_shape)
+                if isinstance(unpickled_data[identifier][data_type], dict):
+                    concatenated_unpickled_data[data_type] = {
+                        **concatenated_unpickled_data[data_type],
+                        **unpickled_data[identifier][data_type]
+                    }
+                else:
+                    concatenated_unpickled_data[data_type] = np.concatenate((
+                        concatenated_unpickled_data[data_type],
+                        unpickled_data[identifier][data_type]
+                    ))
 
-        with open(os.path.join(data_dir, label_file), "rb") as fp:  # Unpickling
-            label_file = pickle.load(fp)
-        with open(os.path.join(data_dir, indices_1_file), "rb") as fp:  # Unpickling
-            human_indices_1 = pickle.load(fp)
-        with open(os.path.join(data_dir, indices_2_file), "rb") as fp:  # Unpickling
-            human_indices_2 = pickle.load(fp)
+        # verify that the entries of all data types have the same length
+        assert all(len(value) == len(next(iter(concatenated_unpickled_data.values()))) for value in concatenated_unpickled_data.values())
+
+        out = ()
+        for data_type in ['indices', 'indices_1', 'indices_2', 'human_label']:
+            if data_type in concatenated_unpickled_data:
+                out = out + (concatenated_unpickled_data[data_type],)
+        out = out[0] if len(out) == 1 else out
+
+        # human_labels, indices_1_file, indices_2_file = sorted(matched_file)
+        # 
+        # with open(os.path.join(data_dir, human_labels), "rb") as fp:  # Unpickling
+        #     human_labels = pickle.load(fp)
+        # with open(os.path.join(data_dir, indices_1_file), "rb") as fp:  # Unpickling
+        #     human_indices_1 = pickle.load(fp)
+        # with open(os.path.join(data_dir, indices_2_file), "rb") as fp:  # Unpickling
+        #     human_indices_2 = pickle.load(fp)
     else:
         raise ValueError(f"Label not found")
-    return human_indices_1, human_indices_2, label_file
+    return out
+    # return human_indices_1, human_indices_2, human_labels
 
 
 if __name__ == '__main__':

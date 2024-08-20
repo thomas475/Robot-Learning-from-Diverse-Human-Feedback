@@ -16,11 +16,11 @@ batch_size: 64
 n_epochs: 100
 num_query: 5 # original 2000
 len_query: 200
-data_dir: "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/crowdsource_human_labels/"
+data_dir: "../crowdsource_human_labels/"
 
 # misc
 seed: 888
-exp_name: transformer
+exp_name: mlp
 save_model: true
 use_wandb: false
 wandb_project: Uni-RLHF
