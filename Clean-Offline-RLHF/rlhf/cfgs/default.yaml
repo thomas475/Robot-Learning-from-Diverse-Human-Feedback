@@ -1,4 +1,6 @@
 # environment
+# domain: mujoco
+# env: hopper-medium-v2
 domain: d4rl
 env: kitchen-mixed-v0
 fake_label: false
@@ -14,8 +16,8 @@ feedback_type: ['comparative']
 ensemble_size: 1
 batch_size: 64
 n_epochs: 100
-num_query: 5 # original 2000
-len_query: 200
+# num_query: 5 # original 2000
+# len_query: 200
 data_dir: "../crowdsource_human_labels/"
 
 # misc

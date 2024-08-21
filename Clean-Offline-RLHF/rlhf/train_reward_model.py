@@ -78,7 +78,7 @@ def load_queries_with_indices(dataset, num_query, len_query, saved_indices, save
     for query_count, i in enumerate(query_range):
         temp_count = 0
         while temp_count < 2:
-            start_idx = saved_indices[temp_count][i]
+            start_idx = int(saved_indices[temp_count][i])
             end_idx = start_idx + len_query
             
             reward_seq = dataset['rewards'][start_idx:end_idx]
@@ -159,8 +159,9 @@ def train(cfg):
     # set seed
     set_seed(cfg.seed)
     # get work dir
-    last_name = 'epoch_' + str(cfg.n_epochs) + '_query_' + str(cfg.num_query) +\
-                '_len_' + str(cfg.len_query) + '_seed_' + str(cfg.seed)
+    last_name = 'epoch_' + str(cfg.n_epochs) + '_seed_' + str(cfg.seed)
+    # last_name = 'epoch_' + str(cfg.n_epochs) + '_query_' + str(cfg.num_query) +\
+    #             '_len_' + str(cfg.len_query) + '_seed_' + str(cfg.seed)
     work_dir = Path().cwd() / __LOGS__ / cfg.env / cfg.exp_name / last_name
     print("work directory:", work_dir)
     L = logger.Logger(work_dir, cfg)
@@ -193,19 +194,21 @@ def train(cfg):
     else:
         suffix = 'human_labels'
 
-    if not 'feedback_type' in cfg or not cfg.feedback_type:
-        cfg['feedback_type'] = ['comparative']
-    for feedback_type in cfg.feedback_type:
-        _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
+    if 'feedback_type' in cfg and cfg.feedback_type:
+        for feedback_type in cfg.feedback_type:
+            _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
+    else:
+        _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix), observation_dim)
+        
 
 
-def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_type):
+def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_type='comparative'):
     if feedback_type in ['comparative', 'attribute']:
-        human_indices_1, human_indices_2, human_labels = label_data
+        human_indices_1, human_indices_2, human_labels, num_query, len_query = label_data
     elif feedback_type in ['evaluative']:
-        human_indices, human_labels = label_data
+        human_indices, human_labels, num_query, len_query = label_data
     elif feedback_type in ['keypoint', 'visual']:
-        human_labels = label_data
+        human_labels, num_query, len_query = label_data
     else:
         raise ValueError("Invalid feedback type:", feedback_type)
 
@@ -222,7 +225,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                 activation="tanh", logger=L)
 
         pref_dataset = load_queries_with_indices(
-            dataset, cfg.num_query, cfg.len_query, saved_indices=[human_indices_1, human_indices_2],
+            dataset, num_query, len_query, saved_indices=[human_indices_1, human_indices_2],
             saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality)
         reward_model.train(n_epochs=cfg.n_epochs, pref_dataset=pref_dataset,
                            data_size=pref_dataset["observations"].shape[0],
@@ -232,7 +235,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                                       activation=None, logger=L)
         N_DATASET_PARTITION = 5
         pref_dataset = [load_queries_with_indices(
-            dataset, cfg.num_query // N_DATASET_PARTITION, cfg.len_query,
+            dataset, num_query // N_DATASET_PARTITION, len_query,
             saved_indices=[human_indices_1, human_indices_2],
             saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality, partition_idx=p_idx)
             for p_idx in range(N_DATASET_PARTITION)]
@@ -260,17 +263,35 @@ def _load_data(cfg, suffix, feedback_type=None):
             if suffix in file_name:
                 matched_file.append(file_name)
         
-        # unpickle transformed human labels 
+        # unpickle transformed human labels
         unpickled_data = {}
         for file in matched_file:
             file_name = os.path.splitext(os.path.basename(file))[0]
-            data_type = file_name.split('_domain')[0]
+            data_type = file_name.split('_domain_')[0]
             identifier = file_name.split('_')[-1]
+
             if identifier not in unpickled_data:
                 unpickled_data[identifier] = {}
             with open(os.path.join(data_dir, file), "rb") as fp:  # Unpickling
                 unpickled_data[identifier][data_type] = pickle.load(fp)
-        
+            
+            if 'query_length' not in unpickled_data[identifier]:
+                unpickled_data[identifier]['query_length'] = int(file_name.split('_len_')[1].split('_')[0])
+
+        # verify that all datasets have the same number of queries
+        query_length = next(iter(unpickled_data.values()))['query_length']
+        for identifier in unpickled_data:
+            assert unpickled_data[identifier]['query_length'] == query_length
+            unpickled_data[identifier].pop('query_length')
+
+        # # add end indices if necessary
+        # for identifier in unpickled_data:
+        #     for data_type in ['indices', 'indices_1', 'indices_2']:
+        #         if data_type in unpickled_data[identifier]:
+        #             unpickled_data[identifier]['start_' + data_type] = unpickled_data[identifier].pop(data_type)
+        #             unpickled_data[identifier]['end_' + data_type] = unpickled_data[identifier]['start_' + data_type] + unpickled_data[identifier]['query_length']
+        #     unpickled_data[identifier].pop('query_length')
+
         # concat data if multiple datasets are given
         concatenated_unpickled_data = {}
         for identifier in unpickled_data:
@@ -297,8 +318,18 @@ def _load_data(cfg, suffix, feedback_type=None):
         # verify that the entries of all data types have the same length
         assert all(len(value) == len(next(iter(concatenated_unpickled_data.values()))) for value in concatenated_unpickled_data.values())
 
+        # add query length and query number to the output
+        concatenated_unpickled_data['num_query'] = len(next(iter(concatenated_unpickled_data.values())))
+        concatenated_unpickled_data['len_query'] = query_length
+
         out = ()
-        for data_type in ['indices', 'indices_1', 'indices_2', 'human_label']:
+        for data_type in [
+            'indices', 'indices_1', 'indices_2', 
+            # 'start_indices', 'start_indices_1', 'start_indices_2', 
+            # 'end_indices', 'end_indices_1', 'end_indices_2', 
+            'human_label',
+            'num_query', 'len_query'
+        ]:
             if data_type in concatenated_unpickled_data:
                 out = out + (concatenated_unpickled_data[data_type],)
         out = out[0] if len(out) == 1 else out
