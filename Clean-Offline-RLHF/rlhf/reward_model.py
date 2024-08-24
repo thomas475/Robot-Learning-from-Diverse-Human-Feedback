@@ -70,7 +70,7 @@ class RewardModel(object):
             model.load_state_dict(state_dict)
             model.to(self.device)
 
-    def train(self, n_epochs, pref_dataset, data_size, batch_size):
+    def train(self, n_epochs, dataset, data_size, batch_size, feedback_type='comparative'):
         interval = int(data_size / batch_size) + 1
 
         for epoch in range(1, n_epochs + 1):
@@ -79,16 +79,16 @@ class RewardModel(object):
 
             batch_shuffled_idx = []
             for _ in range(self.ensemble_size):
-                batch_shuffled_idx.append(np.random.permutation(pref_dataset["observations"].shape[0]))
+                batch_shuffled_idx.append(np.random.permutation(dataset["observations"].shape[0]))
 
             for i in range(interval):
                 self.opt.zero_grad()
                 total_loss = 0
                 start_pt = i * batch_size
-                end_pt = min((i + 1) * batch_size, pref_dataset["observations"].shape[0])
+                end_pt = min((i + 1) * batch_size, dataset["observations"].shape[0])
                 for member in range(self.ensemble_size):
                     # get batch
-                    batch = index_batch(pref_dataset, batch_shuffled_idx[member][start_pt:end_pt])
+                    batch = index_batch(dataset, batch_shuffled_idx[member][start_pt:end_pt])
                     # compute loss
                     curr_loss, correct = self._train(batch, member)
                     total_loss += curr_loss
@@ -250,30 +250,30 @@ class CNNRewardModel(RewardModel):
         return curr_loss, correct
 
 
-    def split_train(self, n_epochs, pref_dataset, data_size, batch_size):
-        N_DATASET_PARTITION = len(pref_dataset)
+    def split_train(self, n_epochs, dataset, data_size, batch_size):
+        N_DATASET_PARTITION = len(dataset)
         for n_epoch in range(n_epochs):
             ensemble_losses = [[] for _ in range(self.ensemble_size)]
             ensemble_acc = [[] for _ in range(self.ensemble_size)]
 
             for partition_idx in range(N_DATASET_PARTITION):
-                pref_dataset_partition = pref_dataset[partition_idx]
-                data_size = pref_dataset_partition["observations"].shape[0]
+                dataset_partition = dataset[partition_idx]
+                data_size = dataset_partition["observations"].shape[0]
 
                 interval = int(data_size / batch_size) + 1
 
                 batch_shuffled_idx = []
                 for _ in range(self.ensemble_size):
-                    batch_shuffled_idx.append(np.random.permutation(pref_dataset_partition["observations"].shape[0]))
+                    batch_shuffled_idx.append(np.random.permutation(dataset_partition["observations"].shape[0]))
 
                 for i in range(interval):
                     self.opt.zero_grad()
                     total_loss = 0
                     start_pt = i * batch_size
-                    end_pt = min((i + 1) * batch_size, pref_dataset_partition["observations"].shape[0])
+                    end_pt = min((i + 1) * batch_size, dataset_partition["observations"].shape[0])
                     for member in range(self.ensemble_size):
                         # get batch
-                        batch = index_batch(pref_dataset_partition, batch_shuffled_idx[member][start_pt:end_pt])
+                        batch = index_batch(dataset_partition, batch_shuffled_idx[member][start_pt:end_pt])
                         # compute loss
                         curr_loss, correct = self._train(batch, member)
                         total_loss += curr_loss
