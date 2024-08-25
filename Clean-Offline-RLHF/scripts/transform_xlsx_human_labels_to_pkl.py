@@ -141,13 +141,11 @@ def main(args):
         print("right better (1):", count_1)
         print("equal (-1):", count_minus_1)
     elif feedback_type == 'evaluative':
-        """
-        map labels to range [0, 1]
-        """
         ratings, frequencies = np.unique(human_label, return_counts=True)
 
-        human_label = np.interp(human_label, (human_label.min(), human_label.max()), (0, 1))
-
+        # map labels to range [0, 1]
+        # human_label = np.interp(human_label, (human_label.min(), human_label.max()), (0, 1))
+        
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         for rating, frequency in zip(ratings, frequencies):
             print("rating " + str(rating) + ":", frequency)
