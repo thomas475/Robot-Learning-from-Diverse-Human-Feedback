@@ -146,6 +146,13 @@ def main(args):
         # map labels to range [0, 1]
         # human_label = np.interp(human_label, (human_label.min(), human_label.max()), (0, 1))
         
+        # turn the label into an indicator vector
+        indicator_matrix = np.zeros((len(human_label), (human_label.max() - human_label.min() + 1)))
+        normalized_label = human_label - human_label.min()
+        for i in range(len(normalized_label)):
+            indicator_matrix[i][normalized_label[i]] = 1
+        human_label = indicator_matrix
+
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         for rating, frequency in zip(ratings, frequencies):
             print("rating " + str(rating) + ":", frequency)

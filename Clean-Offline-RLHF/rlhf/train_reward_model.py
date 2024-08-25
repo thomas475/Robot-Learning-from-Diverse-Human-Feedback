@@ -134,6 +134,8 @@ def load_queries_with_indices(dataset, num_query, len_query, saved_indices, save
             # human_labels[np.array(saved_labels) == -1] = 0.5
             # human_labels = human_labels[query_range]
             # batch['labels'] = human_labels
+    elif feedback_type in ['evaluative']:
+        batch['labels'] = saved_labels
 
     return batch
 
@@ -184,7 +186,7 @@ def train(cfg):
         _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix), observation_dim)
 
 def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_type='comparative'):
-    if feedback_type in ['keypoint']:
+    if feedback_type in ['keypoint', 'visual']:
         warnings.warn('The feedback type "' + feedback_type + '" does not require a reward model, so training is skipped.')
         return
     
@@ -213,13 +215,13 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
             saved_indices = [human_indices_1, human_indices_2]
         elif feedback_type in ["evaluative", "visual"]:
             saved_indices = [human_indices]
+            
+        pref_dataset = load_queries_with_indices(
+            dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
+            scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
 
         # if we use attribute feedback, learn attribute strength mapping first and generate pseudo labels
         if feedback_type in ['attribute']:
-            pref_dataset = load_queries_with_indices(
-                dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
-                scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
-            
             attribute_dim = pref_dataset['labels'].shape[1]
             normalizer = GaussianNormalizer(torch.FloatTensor(dataset['observations']).to(cfg.device))
             nor_raw_obs = normalizer.normalize(torch.FloatTensor(dataset['observations']).to(cfg.device))
@@ -316,12 +318,39 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                         human_labels[i] = 1
                 saved_indices = [saved_indices_1, saved_indices_2]
 
-            # treat the reward learning as comparative, but use the pseudo labels
-            feedback_type = 'comparative'
+            # load data for the pseudo labels
+            pref_dataset = load_queries_with_indices(
+                dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
+                scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
+        
+        # if we use evaluative feedback, we first have to determine rating boundaries
+        if feedback_type in ['evaluative']:
+            print(f"Generating rating boundaries for {cfg.env} training dataset.")
+            trajectory_reward_sums = sorted(list(np.sum(pref_dataset['rewards'], axis=1)))
+            
+            ratings = np.argmax(pref_dataset['labels'], axis=1)
 
-        pref_dataset = load_queries_with_indices(
-            dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
-            scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
+            # get frequencies of rating categories
+            n_rating_categories = max(ratings.astype(int)) + 1
+            rating_categories, counts = np.unique(ratings.astype(int), return_counts=True)
+            rating_category_counts = np.zeros(n_rating_categories)
+            rating_category_counts[rating_categories] = counts
+
+            # generate rating boundaries
+            rating_boundaries = np.zeros(n_rating_categories + 1)
+            rating_boundaries[0] = trajectory_reward_sums[0]
+            rating_boundaries[n_rating_categories] = trajectory_reward_sums[-1]
+            for i in range(1, n_rating_categories):
+                cumulative_count = np.sum(rating_category_counts[:i]).astype(int) - 1
+                rating_boundaries[i] = (trajectory_reward_sums[cumulative_count] + trajectory_reward_sums[cumulative_count + 1]) / 2
+            
+            # normalize rewards by mapping them to 0 to 1
+            normalizer = MinMaxScaler(rating_boundaries[0], rating_boundaries[-1])
+            pref_dataset['context'] = {
+                'boundaries': normalizer.transform(rating_boundaries),
+                'min_unnormalized_reward_sum': rating_boundaries[0],
+                'max_unnormalized_reward_sum': rating_boundaries[-1]
+            }
 
         reward_model.train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
                            data_size=pref_dataset["observations"].shape[0],

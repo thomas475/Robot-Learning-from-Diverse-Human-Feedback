@@ -11,7 +11,10 @@ import utils
 def index_batch(batch, indices):
     indexed = {}
     for key in batch.keys():
-        indexed[key] = batch[key][indices, ...]
+        if key == 'context':
+            indexed[key] = batch[key]
+        else:
+            indexed[key] = batch[key][indices, ...]
     return indexed
 
 
@@ -90,7 +93,7 @@ class RewardModel(object):
                     # get batch
                     batch = index_batch(dataset, batch_shuffled_idx[member][start_pt:end_pt])
                     # compute loss
-                    curr_loss, correct = self._train(batch, member)
+                    curr_loss, correct = self._train(batch, member, feedback_type)
                     total_loss += curr_loss
                     ensemble_losses[member].append(curr_loss.item())
                     ensemble_acc[member].append(correct)
@@ -109,43 +112,77 @@ class RewardModel(object):
             if np.mean(ensemble_acc) > 0.968 and "antmaze" not in self.task:
                 break
 
-    def _train(self, batch, member):
-        # get batch
-        obs_1 = batch['observations']  # batch_size * len_query * obs_dim
-        act_1 = batch['actions']  # batch_size * len_query * action_dim
-        obs_2 = batch['observations_2']
-        act_2 = batch['actions_2']
-        labels = batch['labels']  # batch_size * 2 (one-hot, for equal label)
-        s_a_1 = np.concatenate([obs_1, act_1], axis=-1)
-        s_a_2 = np.concatenate([obs_2, act_2], axis=-1)
+    def _train(self, batch, member, feedback_type='comparative'):
+        if feedback_type in ['comparative', 'attribute']:
+            # get batch
+            obs_1 = batch['observations']  # batch_size * len_query * obs_dim
+            act_1 = batch['actions']  # batch_size * len_query * action_dim
+            obs_2 = batch['observations_2']
+            act_2 = batch['actions_2']
+            labels = batch['labels']  # batch_size * 2 (one-hot, for equal label)
+            s_a_1 = np.concatenate([obs_1, act_1], axis=-1)
+            s_a_2 = np.concatenate([obs_2, act_2], axis=-1)
 
-        # get comparable labels
-        comparable_indices = np.where((labels != [0.5, 0.5]).any(axis=1))[0]
-        comparable_labels = torch.from_numpy(np.argmax(labels, axis=1)).to(self.device)
+            # get comparable labels
+            comparable_indices = np.where((labels != [0.5, 0.5]).any(axis=1))[0]
+            comparable_labels = torch.from_numpy(np.argmax(labels, axis=1)).to(self.device)
 
-        # get logits
-        r_hat1 = self.r_hat_member(s_a_1, member)  # batch_size * len_query * 1
-        r_hat2 = self.r_hat_member(s_a_2, member)
-        r_hat1 = r_hat1.sum(axis=1)  # batch_size * 1
-        r_hat2 = r_hat2.sum(axis=1)
-        r_hat = torch.cat([r_hat1, r_hat2], axis=1)  # batch_size * 2
+            # get logits
+            r_hat1 = self.r_hat_member(s_a_1, member)  # batch_size * len_query * 1
+            r_hat2 = self.r_hat_member(s_a_2, member)
+            r_hat1 = r_hat1.sum(axis=1)  # batch_size * 1
+            r_hat2 = r_hat2.sum(axis=1)
+            r_hat = torch.cat([r_hat1, r_hat2], axis=1)  # batch_size * 2
 
-        # get labels
-        # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
-        labels = torch.from_numpy(labels).to(self.device)
+            # get labels
+            # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
+            labels = torch.from_numpy(labels).to(self.device)
 
-        # compute loss
-        curr_loss = self.softXEnt_loss(r_hat, labels)
+            # compute loss
+            curr_loss = self.softXEnt_loss(r_hat, labels)
 
-        # compute acc
-        _, predicted = torch.max(r_hat.data, 1)
+            # compute acc
+            _, predicted = torch.max(r_hat.data, 1)
 
-        if not len(comparable_indices):
-            correct = 0.7  # TODO, for exception
-        else:
-            correct = (predicted[comparable_indices] == comparable_labels[comparable_indices]).sum().item() / len(
-                comparable_indices)
-        return curr_loss, correct
+            if not len(comparable_indices):
+                correct = 0.7  # TODO, for exception
+            else:
+                correct = (predicted[comparable_indices] == comparable_labels[comparable_indices]).sum().item() / len(
+                    comparable_indices)
+            return curr_loss, correct
+        elif feedback_type in ['evaluative']:
+            # get batch
+            obs = batch['observations']  # batch_size * len_query * obs_dim
+            act = batch['actions']  # batch_size * len_query * action_dim
+            labels = batch['labels']  # batch_size * (one-hot, for rating)
+            context = batch['context']
+            boundaries = context['boundaries']
+            normalizer = utils.MinMaxScaler(
+                context['min_unnormalized_reward_sum'], 
+                context['max_unnormalized_reward_sum']
+            )
+            s_a = np.concatenate([obs, act], axis=-1)
+
+            # get logits
+            r_hat = self.r_hat_member(s_a, member)  # batch_size * len_query * 1
+            r_hat = r_hat.sum(axis=1)  # batch_size * 1
+            r_tilde = normalizer.transform(r_hat)
+
+            # get labels
+            # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
+            labels = torch.from_numpy(labels).to(self.device)
+
+            # compute loss
+            curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)
+
+            # compute acc
+            prediction = np.argmax(np.clip(((
+                r_tilde.unsqueeze(1) < torch.tensor(boundaries).unsqueeze(0)
+            ) == 1).int().argmax(dim=1).numpy(), 0, len(labels) - 1), axis=1)
+            target = np.argmax(labels.numpy(), axis=1)
+            correct = sum(prediction == target) / len(labels)
+
+            return curr_loss, correct
 
     def r_hat_member(self, x, member):
         return self.ensemble[member](torch.from_numpy(x).float().to(self.device))
@@ -164,6 +201,13 @@ class RewardModel(object):
     def softXEnt_loss(self, input, target):
         logprobs = nn.functional.log_softmax(input, dim=1)
         return -(target * logprobs).sum() / input.shape[0]
+    
+    def multiclassXEnt_loss(self, input, target, boundaries):
+        exps = torch.zeros((len(boundaries) - 1, len(input)))
+        for i in range(len(boundaries) - 1):
+            exps[i] = torch.exp(((input - boundaries[i]) * (input - boundaries[i + 1])).squeeze())
+        p = (exps / torch.sum(exps, dim=0)).T
+        return -(target * torch.log(p)).sum() / input.shape[0]
 
 
 class CNNRewardModel(RewardModel):
@@ -210,7 +254,10 @@ class CNNRewardModel(RewardModel):
         embedding = self.ensemble[member][:7](observation).view(batch_size, len_query, -1)
         return embedding
 
-    def _train(self, batch, member):
+    def _train(self, batch, member, feedback_type='comparative'):
+        if feedback_type not in ['comparative']:
+            raise NotImplementedError('CNN reward model only works for comparative feedback.')
+
         # get batch
         batch_size = batch['observations'].shape[0]
         obs_1 = batch['observations']  # batch_size * len_query * 1 * obs_dim
@@ -346,52 +393,89 @@ class TransformerRewardModel(RewardModel):
 
         self.opt = torch.optim.Adam(self.paramlst, lr=self.lr)
 
-    def _train(self, batch, member):
-        # get batch
-        obs_1 = batch['observations']  # batch_size * len_query * obs_dim
-        act_1 = batch['actions']  # batch_size * len_query * action_dim
-        obs_2 = batch['observations_2']
-        act_2 = batch['actions_2']
-        labels = batch['labels']  # batch_size * 2 (one-hot, for equal label)
+    def _train(self, batch, member, feedback_type='comparative'):
+        if feedback_type in ['comparative', 'attribute']:
+            # get batch
+            obs_1 = batch['observations']  # batch_size * len_query * obs_dim
+            act_1 = batch['actions']  # batch_size * len_query * action_dim
+            obs_2 = batch['observations_2']
+            act_2 = batch['actions_2']
+            labels = batch['labels']  # batch_size * 2 (one-hot, for equal label)
 
-        # to_torch
-        obs_1 = utils.to_torch(obs_1).to(self.device)
-        act_1 = utils.to_torch(act_1).to(self.device)
-        obs_2 = utils.to_torch(obs_2).to(self.device)
-        act_2 = utils.to_torch(act_2).to(self.device)
+            # to_torch
+            obs_1 = utils.to_torch(obs_1).to(self.device)
+            act_1 = utils.to_torch(act_1).to(self.device)
+            obs_2 = utils.to_torch(obs_2).to(self.device)
+            act_2 = utils.to_torch(act_2).to(self.device)
 
-        # get comparable labels
-        comparable_indices = np.where((labels != [0.5, 0.5]).any(axis=1))[0]
-        comparable_labels = torch.from_numpy(np.argmax(labels, axis=1)).to(self.device)
+            # get comparable labels
+            comparable_indices = np.where((labels != [0.5, 0.5]).any(axis=1))[0]
+            comparable_labels = torch.from_numpy(np.argmax(labels, axis=1)).to(self.device)
 
-        # get logits
-        r_hat1 = self.ensemble[member](obs_1, act_1)  # batch_size * len_query
-        r_hat2 = self.ensemble[member](obs_2, act_2)
-        
-        r_hat1 = r_hat1.mean(-1, keepdim=True)  # batch_size * 1
-        r_hat2 = r_hat2.mean(-1, keepdim=True)
-        r_hat = torch.cat([r_hat1, r_hat2], axis=-1)  # batch_size * 2
-        
-        p_1_2 = 1./(1.+torch.exp(r_hat2-r_hat1)) # batch_size * 1
-        y = utils.to_torch(labels[:, :1], dtype=torch.float32).to(self.device) # batch_size * 1
-
-        weights = torch.ones_like(y)
-        weights[torch.where(y==0.5)] = 0.0
-        
-        curr_loss = - (weights*(y*torch.log(p_1_2+1e-8) + (1-y)*torch.log(1-p_1_2+1e-8))).mean()
-        
-        # labels = utils.to_torch(labels, dtype=torch.long).to(self.device)
-
-        # # compute loss
-        # curr_loss = self.softXEnt_loss(r_hat, labels)
-
-        # compute acc
-        _, predicted = torch.max(r_hat.data, 1)
-
-        if not len(comparable_indices):
-            correct = 0.7  # TODO, for exception
-        else:
-            correct = (predicted[comparable_indices] == comparable_labels[comparable_indices]).sum().item() / len(
-                comparable_indices)
+            # get logits
+            r_hat1 = self.ensemble[member](obs_1, act_1)  # batch_size * len_query
+            r_hat2 = self.ensemble[member](obs_2, act_2)
             
-        return curr_loss, correct
+            r_hat1 = r_hat1.mean(-1, keepdim=True)  # batch_size * 1
+            r_hat2 = r_hat2.mean(-1, keepdim=True)
+            r_hat = torch.cat([r_hat1, r_hat2], axis=-1)  # batch_size * 2
+            
+            p_1_2 = 1./(1.+torch.exp(r_hat2-r_hat1)) # batch_size * 1
+            y = utils.to_torch(labels[:, :1], dtype=torch.float32).to(self.device) # batch_size * 1
+
+            weights = torch.ones_like(y)
+            weights[torch.where(y==0.5)] = 0.0
+            
+            curr_loss = - (weights*(y*torch.log(p_1_2+1e-8) + (1-y)*torch.log(1-p_1_2+1e-8))).mean()
+            
+            # labels = utils.to_torch(labels, dtype=torch.long).to(self.device)
+
+            # # compute loss
+            # curr_loss = self.softXEnt_loss(r_hat, labels)
+
+            # compute acc
+            _, predicted = torch.max(r_hat.data, 1)
+
+            if not len(comparable_indices):
+                correct = 0.7  # TODO, for exception
+            else:
+                correct = (predicted[comparable_indices] == comparable_labels[comparable_indices]).sum().item() / len(
+                    comparable_indices)
+                
+            return curr_loss, correct
+        elif feedback_type in ['evaluative']:
+            # get batch
+            obs = batch['observations']  # batch_size * len_query * obs_dim
+            act = batch['actions']  # batch_size * len_query * action_dim
+            labels = batch['labels']  # batch_size * (one-hot, for rating)
+            context = batch['context']
+            boundaries = context['boundaries']
+            normalizer = utils.MinMaxScaler(
+                context['min_unnormalized_reward_sum'], 
+                context['max_unnormalized_reward_sum']
+            )
+
+            # to torch
+            obs = utils.to_torch(obs).to(self.device)
+            act = utils.to_torch(act).to(self.device)
+
+            # get logits
+            r_hat = self.ensemble[member](obs, act)  # batch_size * len_query * 1
+            r_hat = r_hat.sum(axis=1)  # batch_size * 1
+            r_tilde = normalizer.transform(r_hat)
+
+            # get labels
+            # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
+            labels = torch.from_numpy(labels).to(self.device)
+
+            # compute loss
+            curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)
+
+            # compute acc
+            prediction = np.clip(((
+                r_tilde.unsqueeze(1) < torch.tensor(boundaries).unsqueeze(0)
+            ) == 1).int().argmax(dim=1).numpy(), 0, len(labels) - 1)
+            target = np.argmax(labels.numpy(), axis=1)
+            correct = sum(prediction == target) / len(labels)
+
+            return curr_loss, correct

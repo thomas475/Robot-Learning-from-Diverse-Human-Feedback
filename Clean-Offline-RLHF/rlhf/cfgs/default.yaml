@@ -10,7 +10,7 @@ clip_action: 0.999  # only d4rl
 stack: false  # stack frame in pixel benchmark, only atari
 
 # feedback type
-feedback_type: ['attribute']
+feedback_type: ['evaluative']
 
 # learning
 ensemble_size: 1
