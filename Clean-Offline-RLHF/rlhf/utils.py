@@ -8,6 +8,7 @@ import math
 from typing import Optional
 from pathlib import Path
 import os
+import d4rl
 
 
 Batch = collections.namedtuple(
@@ -139,6 +140,108 @@ def reward_from_preference(
     # print(fr_n_bins)
     
     return dataset
+
+@torch.no_grad()
+def replace_dataset_reward(
+    dataset: D4RLDataset,
+    reward_models,
+    reward_model_types,
+    batch_size: int = 256,
+    device="cuda"
+):
+    """
+    For each reward model, estimate rewards for all state-action pairs in the dataset.
+    Normalize these rewards independently to a range of 0 to 1. 
+    Then, combine the normalized rewards into a single reward signal using linear interpolation.
+    Finally, replace the original rewards with this new signal.
+    """
+    data_size = dataset["rewards"].shape[0]
+    interval = int(data_size / batch_size) + 1
+    new_r = np.zeros((len(reward_models),) + dataset["rewards"].shape)
+    
+    for n, (reward_model, reward_model_type) in enumerate(zip(reward_models, reward_model_types)):
+        if reward_model_type == "transformer":
+            max_seq_len = reward_model.max_seq_len
+            for each in reward_model.ensemble:
+                each.eval()
+    
+            obs, act = [], []
+            ptr = 0
+            for i in trange(data_size):
+                
+                if len(obs) < max_seq_len:
+                    obs.append(dataset["observations"][i])
+                    act.append(dataset["actions"][i])
+                
+                if dataset["terminals"][i] > 0 or i == data_size - 1 or len(obs) == max_seq_len:
+                    tensor_obs = to_torch(np.array(obs)[None,], dtype=torch.float32).to(device)
+                    tensor_act = to_torch(np.array(act)[None,], dtype=torch.float32).to(device)
+                    
+                    new_reward = 0
+                    for each in reward_model.ensemble:
+                        new_reward += each(tensor_obs, tensor_act).detach().cpu().numpy()
+                    new_reward /= len(reward_model.ensemble)
+                    if tensor_obs.shape[1] <= -1:
+                        new_r[n][ptr:ptr+tensor_obs.shape[1]] = dataset["rewards"][ptr:ptr+tensor_obs.shape[1]]
+                    else:
+                        new_r[n][ptr:ptr+tensor_obs.shape[1]] = new_reward
+                    ptr += tensor_obs.shape[1]
+                    obs, act = [], []
+        else:
+            for i in trange(interval):
+                start_pt = i * batch_size
+                end_pt = (i + 1) * batch_size
+
+                observations = dataset["observations"][start_pt:end_pt]
+                actions = dataset["actions"][start_pt:end_pt]
+                obs_act = np.concatenate([observations, actions], axis=-1)
+
+                new_reward = reward_model.get_reward_batch(obs_act).reshape(-1)
+                new_r[n][start_pt:end_pt] = new_reward
+
+    # map rewards to [0, 1] for each reward model independently
+    new_r = MinMaxScaler(new_r.min(axis=1), new_r.max(axis=1)).transform(new_r.T).T
+
+    # combine rewards through linear interpolation
+    new_r = new_r.mean(axis=0)
+        
+    dataset["rewards"] = new_r.copy()
+    
+    # rr = dataset["rewards"].copy()
+    # fr = new_r.copy()
+    
+    # rr = (rr-rr.min())/(rr.max()-rr.min())
+    # fr = (fr-fr.min())/(fr.max()-fr.min())
+    
+    # rr_n_bins, _ = np.histogram(rr, 10, (0, 1))
+    # fr_n_bins, _ = np.histogram(fr, 10, (0, 1))
+    
+    # print(rr_n_bins)
+    # print(fr_n_bins)
+    
+    return dataset
+
+def load_reward_models(env, obs_dim, act_dim, reward_model_paths, device):
+    from rlhf.reward_model import RewardModel, TransformerRewardModel
+    
+    reward_models, reward_model_types = [], []
+    for reward_model_path in reward_model_paths:
+        reward_model_type = os.path.splitext(reward_model_path)[0].split('_')[-1]
+        if reward_model_type not in ['mlp', 'transformer', 'transformer1', 'transformer2', 'transformer3']:
+            print('The reward model stored in "' + reward_model_path + '" has an unsupported model type: ' + reward_model_type)
+        else:
+            if reward_model_type == 'mlp':
+                reward_model = RewardModel(env, obs_dim, act_dim, ensemble_size=3, lr=3e-4,
+                                        activation="tanh", logger=None, device=device)
+            elif 'transformer' in reward_model_type:
+                reward_model = TransformerRewardModel(env, obs_dim, act_dim, structure_type="transformer1",
+                                                    ensemble_size=3, lr=0.0003, activation="tanh",
+                                                    d_model=256, nhead=4, num_layers=1, max_seq_len=100,
+                                                    logger=None, device=device)
+            reward_model.load_model(reward_model_path)
+            reward_models.append(reward_model)
+            reward_model_types.append(reward_model_type)
+    return reward_models, reward_model_types
 
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):

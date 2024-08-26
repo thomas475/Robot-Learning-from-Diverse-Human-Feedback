@@ -3,7 +3,7 @@
 # https://arxiv.org/pdf/2006.04779.pdf
 from typing import Any, Dict, List, Optional, Tuple, Union
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import os, sys
 from pathlib import Path
 import random
@@ -26,19 +26,18 @@ sys.path.append(APP_DIR)
 sys.path.append(APP_DIR+'/rlhf')
 
 # reward model
-from rlhf.reward_model import RewardModel, TransformerRewardModel
-from rlhf.utils import reward_from_preference
+from rlhf.utils import replace_dataset_reward, load_reward_models
 
 
 @dataclass
 class TrainConfig:
     # Experiment
-    device: str = "cuda"
-    env: str = "halfcheetah-medium-expert-v2"  # OpenAI gym environment name
+    device: str = "cpu"
+    env: str = "kitchen-mixed-v0"  # OpenAI gym environment name
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
-    eval_freq: int = int(5e3)  # How often (time steps) we evaluate
-    n_episodes: int = 10  # How many episodes run during evaluation
-    max_timesteps: int = int(1e6)  # Max time steps to run environment
+    eval_freq: int = int(10)  # How often (time steps) we evaluate - default int(5e3)
+    n_episodes: int = 1  # How many episodes run during evaluation - default 10
+    max_timesteps: int = int(100)  # Max time steps to run environment - default int(1e6)
     checkpoints_path: Optional[str] = None  # Save path
     load_model: str = ""  # Model load file name, "" doesn't load
 
@@ -78,8 +77,11 @@ class TrainConfig:
     project: str = "Uni-RLHF"
     group: str = "CQL"
     name: str = "exp"
-    reward_model_path: str = "path/to/reward_model"
-    reward_model_type: str = "mlp"
+    reward_model_paths: list = field(default_factory=lambda: [
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/comparative_reward_mlp.pt",
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/evaluative_reward_mlp.pt",
+    ])
+    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/keypoint_predictor_mlp.pt"
 
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
@@ -851,21 +853,8 @@ def train(config: TrainConfig):
 
     dataset = d4rl.qlearning_dataset(env)
 
-    # Note: add preference here!
-    if config.reward_model_type == 'mlp':
-        reward_model = RewardModel(config.env, state_dim, action_dim, ensemble_size=3, lr=3e-4,
-                                   activation="tanh", logger=None, device=config.device)
-    elif config.reward_model_type == 'transformer':
-        reward_model = TransformerRewardModel(config.env, state_dim, action_dim, structure_type="transformer1",
-                                              ensemble_size=3, lr=0.0003, activation="tanh",
-                                              d_model=256, nhead=4, num_layers=1, max_seq_len=100,
-                                              logger=None, device=config.device)
-    else:
-        print("reward model type doesn't exist")
-    reward_model_path = config.reward_model_path
-    reward_model.load_model(reward_model_path)
-    dataset = reward_from_preference(dataset, reward_model, reward_model_type=config.reward_model_type,
-                                     device=config.device)
+    reward_models, reward_model_types = load_reward_models(config.env, state_dim, action_dim, config.reward_model_paths, config.device)
+    dataset = replace_dataset_reward(dataset, reward_models, reward_model_types, device=config.device)
 
     if config.normalize_reward:
         modify_reward(
