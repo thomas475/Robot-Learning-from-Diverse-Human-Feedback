@@ -453,14 +453,14 @@ class AttrFunc(nn.Module):
         self.optim[ensemble_idx].step()
         return loss.item()
     
-    def save(self, filename: str):
-        file_path = Path(__file__).parents[1]/"results/attr_func"
-        if not os.path.exists(file_path): os.makedirs(file_path)
-        torch.save(self.state_dict(), file_path/(filename+".pt"))
+    def save(self, file_directory, file_name):
+        file_path = os.path.join(file_directory, file_name)
+        if not os.path.exists(file_directory): os.makedirs(file_directory)
+        torch.save(self.state_dict(), file_path + ".pt")
         
-    def load(self, filename: str, map_location = None):
-        file_path = Path(__file__).parents[1]/"results/attr_func"
-        self.load_state_dict(torch.load(file_path/(filename+".pt"), map_location=map_location))
+    def load(self, file_directory, file_name, map_location = None):
+        file_path = os.path.join(file_directory, file_name)
+        self.load_state_dict(torch.load(file_path + ".pt", map_location=map_location))
 
     def add_output_normalization(self, normalizer):
         self.normalizer = normalizer

@@ -17,7 +17,7 @@ exp_name="CS-MLP"
 
 for env in "${envs[@]}"
 do
-    nohup python train_reward_model.py domain=$domain env="$env" modality=$modality structure=$structure fake_label=$fake_label \
+    nohup python train_model.py domain=$domain env="$env" modality=$modality structure=$structure fake_label=$fake_label \
         ensemble_size=$ensemble_size n_epochs=$n_epochs num_query=$num_query len_query=$len_query data_dir=$data_dir \
         seed=$seed exp_name=$exp_name >/dev/null 2>&1 &
 done
@@ -40,7 +40,7 @@ max_seq_len=50
 
 for env in "${envs[@]}"
 do
-    nohup python train_reward_model.py domain=$domain env="$env" modality=$modality structure=$structure fake_label=$fake_label \
+    nohup python train_model.py domain=$domain env="$env" modality=$modality structure=$structure fake_label=$fake_label \
         ensemble_size=$ensemble_size n_epochs=$n_epochs num_query=$num_query len_query=$len_query data_dir=$data_dir \
         seed=$seed exp_name=$exp_name max_seq_len=$max_seq_len >/dev/null 2>&1 &
 done

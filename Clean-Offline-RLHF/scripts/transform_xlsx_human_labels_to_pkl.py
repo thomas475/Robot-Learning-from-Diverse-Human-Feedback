@@ -81,10 +81,12 @@ def main(args):
             if feedback_type in ['comparative', 'evaluative']:
                 human_label = human_label.flatten()
         if feedback_type == 'keypoint':
-            human_label = []
+            human_label = {}
             for query, label in enumerate(parsed_labels):
-                human_label.extend([start_indices[query] + keypoint for keypoint in label['1']])
-            human_label = np.array(human_label)
+                start_idx = start_indices[query]
+                if start_idx not in human_label:
+                    human_label[start_idx] = []
+                human_label[start_idx].extend([start_idx + keypoint for keypoint in label['1']])
         if feedback_type == 'visual':
             human_label = {}
             for query, label in enumerate(parsed_labels):
@@ -158,7 +160,7 @@ def main(args):
             print("rating " + str(rating) + ":", frequency)
     elif feedback_type == 'keypoint':
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
-        print("keypoints:", len(human_label))
+        print("keypoints:", sum(len(value) for value in human_label.values()))
     elif feedback_type == 'visual':
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         print("keypoints:", len(human_label))

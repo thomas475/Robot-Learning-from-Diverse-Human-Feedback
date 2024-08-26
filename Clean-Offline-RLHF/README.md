@@ -59,7 +59,7 @@ Note: for comparison and validation purposes, we provide fast track for scripted
 Here we provided an example of `CS-MLP` method for `walker2d-medium-expert-v2` task, and you can customize it in configuration file `rlhf/cfgs/default.yaml`.
 ```bash
 cd rlhf
-python train_reward_model.py domain=mujoco env=walker2d-medium-expert-v2 \
+python train_model.py domain=mujoco env=walker2d-medium-expert-v2 \
 modality=state structure=mlp fake_label=false ensemble_size=3 n_epochs=50 \
 num_query=2000 len_query=200 data_dir="../crowdsource_human_labels" \
 seed=0 exp_name="CS-MLP"

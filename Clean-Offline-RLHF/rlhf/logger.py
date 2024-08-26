@@ -29,7 +29,7 @@ class Logger(object):
     """Primary logger object. Logs either locally or using wandb."""
     def __init__(self, log_dir, cfg):
         self._log_dir = make_dir(log_dir)
-        self._model_dir = make_dir(self._log_dir / 'models')
+        self._model_dir = make_dir(os.path.join(self._log_dir, 'models'))
         self._save_model = cfg.save_model
         self._group = cfg_to_group(cfg)
         self._seed = cfg.seed
@@ -57,11 +57,17 @@ class Logger(object):
                 print(colored('Warning: failed to init wandb. Logs will be saved locally.', 'yellow'), attrs=['bold'])
                 self._wandb = None
 
-    def finish(self, reward_model):
+    def finish(self, model, name='model'):
         if self._save_model:
-            reward_model.save_model(self._model_dir / f"reward_model.pt")
+            model.save_model(os.path.join(self._model_dir, name + '.pt'))
         if self._wandb:
             self._wandb.finish()
+
+    # def finish(self, reward_model):
+    #     if self._save_model:
+    #         reward_model.save_model(self._model_dir / f"reward_model.pt")
+    #     if self._wandb:
+    #         self._wandb.finish()
 
     def _format(self, key, value, ty):
         if ty == 'int':

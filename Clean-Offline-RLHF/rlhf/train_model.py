@@ -7,6 +7,7 @@ import gym
 from reward_model import RewardModel, CNNRewardModel, TransformerRewardModel
 # from utils import AttrFunc, GaussianNormalizer, get_episode_boundaries, MinMaxScaler, generate_trajectory_pairs
 from utils import *
+from keypoint_prediction_model import KeypointPredictorModel
 from tqdm import tqdm
 import logger
 import random
@@ -19,7 +20,7 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
 
-__CONFIG__, __LOGS__ = 'cfgs', 'reward_model_logs'
+__CONFIG__, __LOGS__ = 'cfgs', 'model_logs'
 
 
 def set_seed(seed):
@@ -134,7 +135,15 @@ def load_queries_with_indices(dataset, num_query, len_query, saved_indices, save
             # human_labels[np.array(saved_labels) == -1] = 0.5
             # human_labels = human_labels[query_range]
             # batch['labels'] = human_labels
-    elif feedback_type in ['evaluative']:
+    elif feedback_type in ['keypoint']:
+        human_labels = []
+        for i in range(num_query):
+            keypoints = []
+            for keypoint in saved_labels[saved_indices[0][i]]:
+                keypoints.append(dataset['observations'][keypoint])
+            human_labels.append(keypoints)
+        batch['labels'] = np.array(human_labels, dtype=object)
+    else:
         batch['labels'] = saved_labels
 
     return batch
@@ -143,13 +152,6 @@ def load_queries_with_indices(dataset, num_query, len_query, saved_indices, save
 def train(cfg):
     # set seed
     set_seed(cfg.seed)
-    # get work dir
-    last_name = 'epoch_' + str(cfg.n_epochs) + '_seed_' + str(cfg.seed)
-    # last_name = 'epoch_' + str(cfg.n_epochs) + '_query_' + str(cfg.num_query) +\
-    #             '_len_' + str(cfg.len_query) + '_seed_' + str(cfg.seed)
-    work_dir = Path().cwd() / __LOGS__ / cfg.env / cfg.exp_name / last_name
-    print("work directory:", work_dir)
-    L = logger.Logger(work_dir, cfg)
 
     # setup environments
     if cfg.domain == "atari":
@@ -181,14 +183,13 @@ def train(cfg):
 
     if 'feedback_type' in cfg and cfg.feedback_type:
         for feedback_type in cfg.feedback_type:
-            _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
+            _train(action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
     else:
-        _train(L, action_dim, cfg, dataset, _load_data(cfg, suffix), observation_dim)
+        _train(action_dim, cfg, dataset, _load_data(cfg, suffix), observation_dim)
 
-def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_type='comparative'):
-    if feedback_type in ['keypoint', 'visual']:
-        warnings.warn('The feedback type "' + feedback_type + '" does not require a reward model, so training is skipped.')
-        return
+def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type='comparative'):
+    if feedback_type not in ['comparative', 'attribute', 'evaluative', 'keypoint']:
+        raise NotImplementedError('Learning from the "' + feedback_type + '" feedback type is not supported yet.')
     
     if feedback_type in ['comparative', 'attribute']:
         human_indices_1, human_indices_2, human_labels, num_query, len_query = label_data
@@ -198,29 +199,31 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
         human_labels, num_query, len_query = label_data
     else:
         raise ValueError("Invalid feedback type:", feedback_type)
+    
+    # initialize logger
+    log_dir = os.path.join(
+        Path().cwd(), __LOGS__, cfg.env, cfg.exp_name, 
+        'epoch_' + str(cfg.n_epochs) + '_query_' + str(num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
+    )
+    model_dir = os.path.join(log_dir, 'models')
+    model_name = f"{feedback_type}_reward_{cfg.structure}"
+    print("Logging directory:", log_dir)
+    L = logger.Logger(log_dir, cfg)
 
     # train reward model
     if cfg.modality == "state":
-        if cfg.structure == 'mlp':
-            reward_model = RewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=3e-4,
-                                       activation="tanh", logger=L)
-        elif "transformer" in cfg.structure:
-            reward_model = TransformerRewardModel(
-                cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-5,
-                structure_type=cfg.structure, d_model=cfg.d_model, num_layers=cfg.num_layers, nhead=cfg.nhead,
-                max_seq_len=cfg.max_seq_len,
-                activation="tanh", logger=L)
-        
         if feedback_type in ["comparative", "attribute"]:
             saved_indices = [human_indices_1, human_indices_2]
         elif feedback_type in ["evaluative", "visual"]:
             saved_indices = [human_indices]
+        elif feedback_type in ['keypoint']:
+            saved_indices = [np.array(list(human_labels.keys()))]
             
         pref_dataset = load_queries_with_indices(
             dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
             scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
 
-        # if we use attribute feedback, learn attribute strength mapping first and generate pseudo labels
+        # if we use attribute feedback, learn attribute strength mapping first and afterwards generate pseudo labels
         if feedback_type in ['attribute']:
             attribute_dim = pref_dataset['labels'].shape[1]
             normalizer = GaussianNormalizer(torch.FloatTensor(dataset['observations']).to(cfg.device))
@@ -231,9 +234,9 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
             attr_func = AttrFunc(observation_dim, attribute_dim, ensemble_size=cfg.attr_map_ensemble_size).to(cfg.device)
             attr_func.train()
 
-            attr_func_file_name = f'{cfg.env}_{cfg.attr_map_n_gradient_steps}'
-            if cfg.attr_map_load and os.path.exists(os.path.join('results', 'attr_func', cfg.attr_func_file_name + '.pt')):
-                attr_func.load(attr_func_file_name)
+            attr_func_model_name = f"{feedback_type}_mapping_transformer"
+            if cfg.attr_map_load and os.path.exists(os.path.join(model_dir, attr_func_model_name + '.pt')):
+                attr_func.load(model_dir, attr_func_model_name)
             else:
                 # Preprocessing
                 if cfg.attr_map_test_size and cfg.attr_map_test_size > 0.0:
@@ -273,7 +276,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                     else:
                         pbar.set_description(f"Loss {log['loss']}")
                     pbar.update(1)
-                attr_func.save(attr_func_file_name)
+                attr_func.save(model_dir, attr_func_model_name)
                 print(f"Finish training.")
 
             # Normalize the attribute mapping
@@ -282,7 +285,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
             with torch.no_grad():
                 attr_strength = []
                 for start_idx, end_idx in tqdm(episode_boundaries):
-                    episode_traj = torch.unsqueeze(torch.FloatTensor(dataset['observations']).to(cfg.device)[start_idx:end_idx], 0)
+                    episode_traj = torch.unsqueeze(torch.FloatTensor(nor_raw_obs).to(cfg.device)[start_idx:end_idx], 0)
                     attr_strength.append(attr_func.predict_attr(episode_traj, None))
                 attr_strength = torch.cat(attr_strength, dim=0).cpu().numpy()
             attr_strength_normalizer = MinMaxScaler(np.min(attr_strength, axis=0), np.max(attr_strength, axis=0))
@@ -299,7 +302,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                 trajectory_attributes = np.zeros((cfg.attr_map_n_pseudo_labels * 2, attribute_dim))
                 for i in range(len(trajectory_boundaries)):
                     start_idx, end_idx = trajectory_boundaries[i][0], trajectory_boundaries[i][1]
-                    trajectory = torch.unsqueeze(torch.FloatTensor(dataset['observations']).to(cfg.device)[start_idx:end_idx], 0)
+                    trajectory = torch.unsqueeze(torch.FloatTensor(nor_raw_obs).to(cfg.device)[start_idx:end_idx], 0)
                     trajectory_attributes[i] = attr_func.predict_attr(trajectory, None)
                 
                 # perform pairwise comparisons and generate pseudo labels
@@ -321,7 +324,7 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
             # load data for the pseudo labels
             pref_dataset = load_queries_with_indices(
                 dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
-                scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
+                scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type='comparative')
         
         # if we use evaluative feedback, we first have to determine rating boundaries
         if feedback_type in ['evaluative']:
@@ -352,11 +355,29 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
                 'max_unnormalized_reward_sum': rating_boundaries[-1]
             }
 
-        reward_model.train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
-                           data_size=pref_dataset["observations"].shape[0],
-                           batch_size=cfg.batch_size, feedback_type=feedback_type)
+        # train the models
+        if feedback_type in ['comparative', 'attribute', 'evaluative']:
+            if cfg.structure == 'mlp':
+                model = RewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=3e-4,
+                                        activation="tanh", logger=L)
+            elif "transformer" in cfg.structure:
+                model = TransformerRewardModel(
+                    cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-5,
+                    structure_type=cfg.structure, d_model=cfg.d_model, num_layers=cfg.num_layers, nhead=cfg.nhead,
+                    max_seq_len=cfg.max_seq_len,
+                    activation="tanh", logger=L)
+                
+        elif feedback_type in ['keypoint']:
+            model = KeypointPredictorModel(cfg.env, observation_dim, action_dim, 
+                ensemble_size=cfg.ensemble_size, lr=3e-4, activation="tanh", logger=L)
+            model_name = f"{feedback_type}_predictor_{cfg.structure}"
+            
+        model.train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
+            data_size=pref_dataset["observations"].shape[0],
+            batch_size=cfg.batch_size, feedback_type=feedback_type)
+            
     else:
-        reward_model = CNNRewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-4,
+        model = CNNRewardModel(cfg.env, observation_dim, action_dim, ensemble_size=cfg.ensemble_size, lr=5e-4,
                                       activation=None, logger=L)
         N_DATASET_PARTITION = 5
         pref_dataset = [load_queries_with_indices(
@@ -365,10 +386,10 @@ def _train(L, action_dim, cfg, dataset, label_data, observation_dim, feedback_ty
             saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality, partition_idx=p_idx, feedback_type=feedback_type)
             for p_idx in range(N_DATASET_PARTITION)]
         # data_size = None means computing data size in function.
-        reward_model.split_train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
-                                 data_size=None,
-                                 batch_size=cfg.batch_size)
-    L.finish(reward_model)
+        model.split_train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
+            data_size=None, batch_size=cfg.batch_size)
+        
+    L.finish(model, model_name)
     print('Training completed successfully')
 
 
