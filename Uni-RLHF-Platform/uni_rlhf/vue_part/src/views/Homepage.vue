@@ -740,7 +740,9 @@ export default {
         createTask() {
             console.log(this.dueTime)
             console.log(this.isValidInvisibleQuestion)
-            if (this.$refs.createForm.validate() && this.isValidInvisibleQuestion) {
+            // Check if the feedback_type requires questions
+            const requiresQuestions = ["comparative", "attribute", "evaluative"].includes(this.FeedbackType);
+            if (this.$refs.createForm.validate() && (!requiresQuestions || this.isValidInvisibleQuestion)) {
                 let Tag = `${this.Tag.join(',')}`
                 let ques = {};
                 this.Question.forEach((question, index) => {

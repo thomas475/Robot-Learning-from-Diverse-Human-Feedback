@@ -10,6 +10,8 @@ from uni_rlhf.controllers.query import query_blueprint
 from uni_rlhf.controllers.annotate import annotate_blueprint
 from uni_rlhf.dataset_validator.user_validator import user_schema
 from jsonschema import validate, ValidationError
+import json
+import os
 
 
 app.register_blueprint(project_blueprint, url_prefix='/project')
@@ -94,4 +96,6 @@ def logout():
 
 
 if __name__ == '__main__':
-    app.run(port=8502)
+    with open(os.path.join(os.getcwd(), 'uni_rlhf', 'config.json'), 'r') as file:
+        config = json.load(file)
+    app.run(host=config['baseUrl'], port=int(config['flaskPort']))

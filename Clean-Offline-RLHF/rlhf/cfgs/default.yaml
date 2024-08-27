@@ -3,7 +3,6 @@
 # env: hopper-medium-v2
 domain: d4rl
 env: kitchen-mixed-v0
-fake_label: false
 modality: 'state'  # state/pixel
 structure: 'mlp' # mlp/transformer1/transformer2/transformer3
 clip_action: 0.999  # only d4rl
@@ -16,6 +15,11 @@ feedback_type: [
   'evaluative',
   'keypoint'
 ]
+
+# scripted teacher
+fake_label: true # use scripted teacher to label queries instead of human feedback
+scripted_teacher_num_query: 100
+scripted_teacher_len_query: 50
 
 # learning
 ensemble_size: 1
@@ -33,7 +37,6 @@ use_wandb: false
 wandb_project: Uni-RLHF
 wandb_entity: thomas # original xiguapi
 device: "cpu"
-
 
 # transformer structure
 d_model: 256

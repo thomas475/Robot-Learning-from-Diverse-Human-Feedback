@@ -73,7 +73,7 @@
                                 <v-slider v-model="frameIndex" :max="images.length" min="0"
                                     style="width: 80%; height: 40px;flex: 0;" @click="click_slider"></v-slider>
                                 <div>
-                                    <v-btn style="visibility: hidden;margin-right: 20px;">选择</v-btn>
+                                    <v-btn style="visibility: hidden;margin-right: 20px;">choose</v-btn>
                                     <v-btn @click="previousImage" icon color="primary"
                                         large><v-icon>mdi-skip-previous</v-icon></v-btn>
                                     <v-btn @click="togglePlayPause" icon color="primary" large><v-icon>{{ isPlaying ?
@@ -81,7 +81,7 @@
                                         'mdi-play' }}</v-icon></v-btn>
                                     <v-btn @click="nextImage" icon color="primary"
                                         large><v-icon>mdi-skip-next</v-icon></v-btn>
-                                    <v-btn @click="choose" style="margin-left: 20px;" color="primary">选择</v-btn>
+                                    <v-btn @click="choose" style="margin-left: 20px;" color="primary">choose</v-btn>
                                 </div>
                             </div>
 
@@ -333,7 +333,7 @@ export default {
         playSlideshow() {
             this.intervalId = setInterval(() => {
                 this.nextImage();
-            }, 1000); // 设置图片切换间隔时间，这里设置为1秒，可以根据需要修改
+            }, 100); // 设置图片切换间隔时间，这里设置为1秒，可以根据需要修改 (image interval)
         },
         pauseSlideshow() {
             clearInterval(this.intervalId);

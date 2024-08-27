@@ -22,7 +22,7 @@ export default Vue.extend({
         return {
             editor: null,
             editorConfig: {
-                placeholder: '请输入内容...'
+                placeholder: 'Enter instructions here...'
             }
         };
     },

@@ -75,8 +75,8 @@
                                 <v-slider v-model="frameIndex" :max="images.length" min="0"
                                     style="width: 60%; height: 40px;flex: 0;" @click="click_slider"></v-slider>
                                 <div>
-                                    <v-btn style="visibility: hidden;margin-right: 20px;">保存</v-btn>
-                                    <v-btn style="visibility: hidden;margin-right: 20px;">清空</v-btn>
+                                    <v-btn style="visibility: hidden;margin-right: 20px;">save</v-btn>
+                                    <v-btn style="visibility: hidden;margin-right: 20px;">clear</v-btn>
                                     <v-btn @click="previousImage" icon color="primary"
                                         large><v-icon>mdi-skip-previous</v-icon></v-btn>
                                     <v-btn @click="togglePlayPause" icon color="primary" large><v-icon>{{ isPlaying ?
@@ -84,8 +84,8 @@
                                         'mdi-play' }}</v-icon></v-btn>
                                     <v-btn @click="nextImage" icon color="primary"
                                         large><v-icon>mdi-skip-next</v-icon></v-btn>
-                                    <v-btn @click="save_frame" style="margin-left: 20px;" color="primary">保存</v-btn>
-                                    <v-btn @click="clear" style="margin-left: 20px;" color="primary">清空</v-btn>
+                                    <v-btn @click="save_frame" style="margin-left: 20px;" color="primary">save</v-btn>
+                                    <v-btn @click="clear" style="margin-left: 20px;" color="primary">clear</v-btn>
                                 </div>
                             </div>
                         </v-card>
@@ -405,7 +405,7 @@ export default {
         playSlideshow() {
             this.intervalId = setInterval(() => {
                 this.nextImage();
-            }, 1000); // 设置图片切换间隔时间，这里设置为1秒，可以根据需要修改
+            }, 100); // 设置图片切换间隔时间，这里设置为1秒，可以根据需要修改 (image interval)
         },
         pauseSlideshow() {
             clearInterval(this.intervalId);

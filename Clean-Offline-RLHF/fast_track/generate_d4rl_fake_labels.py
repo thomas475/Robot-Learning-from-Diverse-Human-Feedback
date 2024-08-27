@@ -19,16 +19,18 @@ import numpy as np
 
 def load_offline_dataset(cfg, dataset_path=None):
     task = cfg["env_name"]
-    category = cfg['domain']
+    domain = cfg['domain']
     gym_env = gym.make(task)
-    if category == 'mujoco':
+    if domain == 'mujoco':
         datasets = qlearning_mujoco_dataset(gym_env)
-    elif category == 'adroit':
+    elif domain == 'adroit':
         datasets = qlearning_adroit_dataset(gym_env)
-    elif category == 'antmaze':
+    elif domain == 'antmaze':
         datasets = qlearning_ant_dataset(gym_env)
+    elif domain == 'd4rl':
+        datasets = get_d4rl_dataset(gym_env)
     else:
-        raise ValueError(f"{category} undefined")
+        raise ValueError(f"{domain} undefined")
 
     print("Finished, loaded {} timesteps.".format(int(datasets["rewards"].shape[0])))
     print(datasets.keys())
@@ -324,6 +326,17 @@ def qlearning_adroit_dataset(env, dataset=None, terminate_on_end=False, **kwargs
         "qvels": np.array(qvel_),
     }
 
+def get_d4rl_dataset(env):
+    import d4rl
+    dataset = d4rl.qlearning_dataset(env)
+    return dict(
+        observations=dataset['observations'],
+        actions=dataset['actions'],
+        next_observations=dataset['next_observations'],
+        rewards=dataset['rewards'],
+        dones=dataset['terminals'].astype(np.float32),
+    )
+
 
 class DatasetSampler:
     """Specially customized sampler for d4rl"""
@@ -335,6 +348,7 @@ class DatasetSampler:
         self.max_episode_length = cfg["max_episode_length"]
         self.dataset = kwargs["dataset"]
         self.task = cfg["env_name"]
+        self.feedback_type = cfg["feedback_type"]
     
     def get_episode_boundaries(self, **kwargs):
         dataset = kwargs['dataset']
@@ -527,13 +541,14 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--domain', type=str, default='mujoco')
-    parser.add_argument('--env_name', type=str, default='pong-medium-v0', help='Environment name.')
+    parser.add_argument('--domain', type=str, default='d4rl')
+    parser.add_argument('--env_name', type=str, default='kitchen-mixed-v0', help='Environment name.')
     parser.add_argument('--save_dir', type=str, default='generated_fake_labels/', help='query path')
-    parser.add_argument('--num_query', type=int, default=2000, help='number of query.')
+    parser.add_argument('--num_query', type=int, default=100, help='number of query.')
     parser.add_argument('--len_query', type=int, default=200, help='length of each query.')
     parser.add_argument('--seed', type=int, default=777, help='seed for reproducibility.')
-    parser.add_argument('--max_episode_length', type=int, default=1000, help='maximum episode length.')
+    parser.add_argument('--max_episode_length', type=int, default=280, help='maximum episode length.')
+    parser.add_argument('--feedback_type', type=str, default='comparative', help='feedback type.')
     
     args = parser.parse_args()
     main(args)
