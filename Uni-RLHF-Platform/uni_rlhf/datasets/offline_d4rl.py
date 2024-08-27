@@ -204,7 +204,140 @@ class Dataset(BaseOfflineDataset):
 	def visualize_query(self, video_info):
 		# mujoco/adroit/antmaze
 		assert self.task in ["mujoco", "adroit", "antmaze", "kitchen"]
+
+		# # parallelization
+		# def _visualize_query(seg_idx, gym_env, spec):
+		# 	if self.feedback_type in ['comparative', 'attribute']:			
+		# 		start_1, start_2, end_1, end_2, query_id = (
+		# 			video_info["start_indices_1"][seg_idx],
+		# 			video_info["start_indices_2"][seg_idx],
+		# 			video_info["end_indices_1"][seg_idx],
+		# 			video_info["end_indices_2"][seg_idx],
+		# 			video_info["query_id"][seg_idx],
+		# 		)
+		# 		start_indices = range(start_1, end_1)
+		# 		start_indices_2 = range(start_2, end_2)
+		# 	elif self.feedback_type in ['evaluative', 'visual', 'keypoint']:
+		# 		start, end, query_id = (
+		# 			video_info["start_indices"][seg_idx],
+		# 			video_info["end_indices"][seg_idx],
+		# 			video_info["query_id"][seg_idx],
+		# 		)
+		# 		start_indices = range(start, end)
+		# 	else:
+		# 		raise ValueError("The dataset does not support this feedback type.")
+
+		# 	# camera
+		# 	if self.task == "mujoco":
+		# 		camera_name = "track"
+		# 	elif self.task == "antmaze":
+		# 		if "medium" in spec.id:
+		# 			dist_per_pixel = 15
+		# 			start_x = 95
+		# 			start_y = 95
+		# 			camera_name = "birdview"
+		# 		else:
+		# 			dist_per_pixel = 11
+		# 			start_x = 80
+		# 			start_y = 110
+		# 			camera_name = "birdview_large"
+		# 	elif self.task == "adroit":
+		# 		camera_name = "fixed"
+		# 	elif self.task == "kitchen":
+		# 		camera_name = "track"
+			
+		# 	frames = []
+		# 	gym_env.reset()
+		# 	for t in trange(self.query_length, leave=False):
+
+		# 		qpos, qvel = self.get_qpos_and_q_vel(start_indices, t)
+		# 		gym_env.set_state(qpos, qvel)
+				
+		# 		if self.task == "antmaze":
+		# 			if "diverse" in spec.id:
+		# 				goal_x, goal_y = map(lambda x: round(x), self.datasets["goals"][start_indices[t]])
+		# 			else:
+		# 				goal_x, goal_y = map(lambda x: round(x), gym_env.target_goal)
+		# 			curr_frame = gym_env.physics.render(width=self.width, height=self.height, mode="offscreen",
+		# 												camera_name=camera_name)
+		# 			curr_frame[
+		# 			start_y + int(goal_y * dist_per_pixel): start_y + int(goal_y * dist_per_pixel) + 10,
+		# 			start_x + int(goal_x * dist_per_pixel): start_x + int(goal_x * dist_per_pixel) + 10,
+		# 			] = np.array((255, 0, 0)).astype(np.uint8)
+					
+		# 			for i in range(1):
+		# 				frames.append(curr_frame)
+		# 		elif self.task == "mujoco" or self.task == "adroit":
+		# 			curr_frame = gym_env.sim.render(width=self.width, height=self.height, mode="offscreen", camera_name=camera_name)
+		# 			frames.append(np.flipud(curr_frame))
+		# 		elif self.task == "kitchen":
+		# 			# curr_frame = gym_env.render(width=self.width, height=self.height, mode="rgb_array", camera_name=camera_name)
+		# 			curr_frame = gym_env.env.render(mode="rgb_array", height=self.height, width=self.width)
+		# 			frames.append(curr_frame)
+		# 			# frames.append(np.flipud(curr_frame))
+		# 		else:
+		# 			raise ValueError(f"{self.task} undefined")
+
+		# 	if self.feedback_type in ['comparative', 'attribute']:	
+		# 		frames_2 = []
+		# 		gym_env.reset()
+		# 		for t in trange(self.query_length, leave=False):
+
+		# 			qpos, qvel = self.get_qpos_and_q_vel(start_indices_2, t)
+		# 			gym_env.set_state(qpos, qvel)
+
+		# 			if self.task == "antmaze":
+		# 				if "diverse" in spec.id:
+		# 					goal_x, goal_y = map(lambda x: round(x), self.datasets["goals"][start_indices_2[t]])
+		# 				else:
+		# 					goal_x, goal_y = map(lambda x: round(x), gym_env.target_goal)
+						
+		# 				curr_frame = gym_env.physics.render(width=self.width, height=self.height, mode="offscreen",
+		# 													camera_name=camera_name)
+		# 				curr_frame[
+		# 				start_y + int(goal_y * dist_per_pixel): start_y + int(goal_y * dist_per_pixel) + 10,
+		# 				start_x + int(goal_x * dist_per_pixel): start_x + int(goal_x * dist_per_pixel) + 10,
+		# 				] = np.array([255, 0, 0]).astype(np.uint8)
+						
+		# 				for i in range(1):
+		# 					frames_2.append(curr_frame)
+		# 			elif self.task == "mujoco" or self.task == "adroit":
+		# 				curr_frame = gym_env.sim.render(width=self.width, height=self.height, mode="offscreen", camera_name=camera_name)
+		# 				frames_2.append(np.flipud(curr_frame))
+		# 			elif self.task == "kitchen":
+		# 				# curr_frame = gym_env.render(width=self.width, height=self.height, mode="rgb_array", camera_name=camera_name)
+		# 				curr_frame = gym_env.render(mode="rgb_array", height=self.height, width=self.width)
+		# 				# frames_2.append(np.flipud(curr_frame))
+		# 				frames_2.append(curr_frame)
+		# 			else:
+		# 				raise ValueError(f"{domain} undefined")
+			
+		# 	if self.feedback_type in ['comparative', 'attribute']:	
+		# 		video = np.concatenate((np.array(frames), np.array(frames_2)), axis=2)
+		# 	else:
+		# 		video = np.array(frames)
+	
+		# 	writer = imageio.get_writer(os.path.join(self.save_dir, self.project_id, f"{spec.id}_{query_id}.mp4"), fps=self.fps)
+		# 	for frame in tqdm(video, leave=False):
+		# 		writer.append_data(frame)
+		# 	writer.close()
+		# 	video_url = os.path.join(self.save_dir, self.project_id, f"{spec.id}_{query_id}.mp4")
+
+		# 	if self.feedback_type in ['visual', 'keypoint']:
+		# 		dataset_utils.video_to_frames(video_url, os.path.join(self.save_dir, self.project_id, f"{spec.id}_{query_id}_img"))
+
+		# 	return video_url	
 		
+		# from joblib import Parallel, delayed
+		# import copy
+		# video_url_list = Parallel(n_jobs=-1)(
+		# 	delayed(_visualize_query)(
+		# 		seg_idx, 
+		# 		copy.deepcopy(self.gym_env), 
+		# 		spec=self.gym_env.spec
+		# 	) for seg_idx in trange(self.query_num)
+		# )
+
 		video_url_list = []
 		for seg_idx in trange(self.query_num):
 			if self.feedback_type in ['comparative', 'attribute']:			
