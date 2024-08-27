@@ -6,7 +6,7 @@ Vue.use(Vuex)
 
 const savedState = localStorage.getItem('vuex-state');
 const initialState = savedState ? JSON.parse(savedState) : {
-  baseUrl:'localhost:8502',
+  baseUrl:'http://213.165.87.4:8502',
   username:'',
   password:'',
   email:'',
