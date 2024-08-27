@@ -50,8 +50,10 @@ def get_atari_dataset(env):
     return datasets
 
 
-def load_queries_with_indices(dataset, num_query, len_query, saved_indices, saved_labels=None, label_type=1,
-                              scripted_teacher=False, equivalence_threshold=0, modality="state", partition_idx=None, feedback_type="comparative"):    
+def load_queries_with_indices(
+        dataset, num_query, len_query, saved_indices, saved_labels=None,
+        scripted_teacher=False, comparison_equivalence_threshold=0, n_evaluation_categories=5, 
+        modality="state", partition_idx=None, feedback_type="comparative"):    
     if modality == "state":
         observation_dim = (dataset["observations"].shape[-1], )
     elif modality == "pixel":
@@ -98,53 +100,55 @@ def load_queries_with_indices(dataset, num_query, len_query, saved_indices, save
         batch['timestep_2'] = total_timestep[1].copy()
         batch['start_indices_2'] = saved_indices[1]
 
-    if feedback_type in ['comparative', 'attribute']:    
-        # script_labels - label_type = 0 perfectly rational / label_type = 1 equivalence_threshold
-        sum_r_t_1 = np.sum(batch['rewards'], axis=1)
-        sum_r_t_2 = np.sum(batch['rewards_2'], axis=1)
-        binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
-        rational_labels = np.zeros((len(binary_label), 2))
-        rational_labels[np.arange(binary_label.size), binary_label] = 1.0
-        if label_type == 1: # equivalence_threshold
-            margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= equivalence_threshold).reshape(-1)
-            rational_labels[margin_index] = 0.5
-        batch['script_labels'] = rational_labels
-
-        if scripted_teacher:
-            # fake label
-            batch['labels'] = saved_labels
+    if scripted_teacher:
+        # scripted labels
+        if feedback_type in ['comparative']:
+            sum_r_t_1 = np.sum(batch['rewards'], axis=1)
+            sum_r_t_2 = np.sum(batch['rewards_2'], axis=1)
+            binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
+            rational_labels = np.zeros((len(binary_label), 2))
+            rational_labels[np.arange(binary_label.size), binary_label] = 1.0
+            if comparison_equivalence_threshold > 0.0:
+                margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= comparison_equivalence_threshold).reshape(-1)
+                rational_labels[margin_index] = 0.5
+            batch['labels'] = rational_labels
+        elif feedback_type in ['evaluative']:
+            sum_r_t = np.sum(batch['rewards'], axis=1)
+            min_sum_r_t, max_sum_r_t = sum_r_t.min(), sum_r_t.max()
+            sum_r_t = (sum_r_t - min_sum_r_t) / (max_sum_r_t - min_sum_r_t) # normalize summed rewards
+            evaluation_upper_bounds = np.array([category / (n_evaluation_categories) for category in range(1, n_evaluation_categories + 1)])
+            categories = np.clip(np.sum(sum_r_t[:, np.newaxis] >= evaluation_upper_bounds, axis=1), 0, n_evaluation_categories - 1) # category is highest index that is smaller than upper bound
+            rational_labels = np.zeros((len(sum_r_t), n_evaluation_categories))
+            for i in range(len(rational_labels)):
+                rational_labels[i][categories[i]] = 1
+            batch['labels'] = rational_labels
         else:
-            # human label 
-            if feedback_type in ['comparative']:    
-                label_shape = (len(saved_labels), 2)
-                human_labels = np.zeros(label_shape)
-                human_labels[np.array(saved_labels) == 0, 0] = 1.
-                human_labels[np.array(saved_labels) == 1, 1] = 1.
-                human_labels[np.array(saved_labels) == -1] = 0.5
-            elif feedback_type in ['attribute']:
-                human_labels = np.array(saved_labels)
-                human_labels[np.array(saved_labels) == -1] = 0.5
+            raise NotImplementedError('Scripted labels are not supported for "' + feedback_type + '" feedback.')
+    else:
+        # human labels   
+        if feedback_type in ['comparative']:    
+            label_shape = (len(saved_labels), 2)
+            human_labels = np.zeros(label_shape)
+            human_labels[np.array(saved_labels) == 0, 0] = 1.
+            human_labels[np.array(saved_labels) == 1, 1] = 1.
+            human_labels[np.array(saved_labels) == -1] = 0.5
             human_labels = human_labels[query_range]
             batch['labels'] = human_labels
-            # label_shape = (len(saved_labels), 2)
-            # if feedback_type in ['attribute']:
-            #     label_shape = saved_labels.shape + (2,)
-            # human_labels = np.zeros(label_shape)
-            # human_labels[np.array(saved_labels) == 0, 0] = 1.
-            # human_labels[np.array(saved_labels) == 1, 1] = 1.
-            # human_labels[np.array(saved_labels) == -1] = 0.5
-            # human_labels = human_labels[query_range]
-            # batch['labels'] = human_labels
-    elif feedback_type in ['keypoint']:
-        human_labels = []
-        for i in range(num_query):
-            keypoints = []
-            for keypoint in saved_labels[saved_indices[0][i]]:
-                keypoints.append(dataset['observations'][keypoint])
-            human_labels.append(keypoints)
-        batch['labels'] = np.array(human_labels, dtype=object)
-    else:
-        batch['labels'] = saved_labels
+        elif feedback_type in ['attribute']:
+            human_labels = np.array(saved_labels)
+            human_labels[np.array(saved_labels) == -1] = 0.5
+            human_labels = human_labels[query_range]
+            batch['labels'] = human_labels
+        elif feedback_type in ['keypoint']:
+            human_labels = []
+            for i in range(num_query):
+                keypoints = []
+                for keypoint in saved_labels[saved_indices[0][i]]:
+                    keypoints.append(dataset['observations'][keypoint])
+                human_labels.append(keypoints)
+            batch['labels'] = np.array(human_labels, dtype=object)
+        else:
+            batch['labels'] = saved_labels
 
     return batch
 
@@ -175,17 +179,11 @@ def train(cfg):
         raise ValueError("Domain not found!")
     print(f"Load env {cfg.env} successfully!")
     
-    # load human labels or fake labels
-    if cfg.fake_label:
-        suffix = 'fake_labels'
-    else:
-        suffix = 'human_labels'
-
     if 'feedback_type' in cfg and cfg.feedback_type:
         for feedback_type in cfg.feedback_type:
-            _train(action_dim, cfg, dataset, _load_data(cfg, suffix, feedback_type), observation_dim, feedback_type)
+            _train(action_dim, cfg, dataset, _load_data(cfg, feedback_type), observation_dim, feedback_type)
     else:
-        _train(action_dim, cfg, dataset, _load_data(cfg, suffix), observation_dim)
+        _train(action_dim, cfg, dataset, _load_data(cfg), observation_dim)
 
 def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type='comparative'):
     if feedback_type not in ['comparative', 'attribute', 'evaluative', 'keypoint']:
@@ -206,7 +204,8 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
         'epoch_' + str(cfg.n_epochs) + '_query_' + str(num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
     )
     model_dir = os.path.join(log_dir, 'models')
-    model_name = f"{feedback_type}_reward_{cfg.structure}"
+    label_type = 'scripted' if cfg.fake_label else 'human'
+    model_name = f"{label_type}_{feedback_type}_reward_{cfg.structure}"
     print("Logging directory:", log_dir)
     L = logger.Logger(log_dir, cfg)
 
@@ -220,9 +219,10 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             saved_indices = [np.array(list(human_labels.keys()))]
             
         pref_dataset = load_queries_with_indices(
-            dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
-            scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type=feedback_type)
-
+            dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+            comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, n_evaluation_categories=cfg.n_evaluation_categories, 
+            modality=cfg.modality, feedback_type=feedback_type)
+        
         # if we use attribute feedback, learn attribute strength mapping first and afterwards generate pseudo labels
         if feedback_type in ['attribute']:
             attribute_dim = pref_dataset['labels'].shape[1]
@@ -234,7 +234,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             attr_func = AttrFunc(observation_dim, attribute_dim, ensemble_size=cfg.attr_map_ensemble_size).to(cfg.device)
             attr_func.train()
 
-            attr_func_model_name = f"{feedback_type}_mapping_transformer"
+            attr_func_model_name = f"{label_type}_{feedback_type}_mapping_transformer"
             if cfg.attr_map_load and os.path.exists(os.path.join(model_dir, attr_func_model_name + '.pt')):
                 attr_func.load(model_dir, attr_func_model_name)
             else:
@@ -323,8 +323,9 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
 
             # load data for the pseudo labels
             pref_dataset = load_queries_with_indices(
-                dataset, num_query, len_query, saved_indices, saved_labels=human_labels, 
-                scripted_teacher=cfg.fake_label, modality=cfg.modality, feedback_type='comparative')
+                dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+                comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, n_evaluation_categories=cfg.n_evaluation_categories, 
+                modality=cfg.modality, feedback_type='comparative')
         
         # if we use evaluative feedback, we first have to determine rating boundaries
         if feedback_type in ['evaluative']:
@@ -370,7 +371,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
         elif feedback_type in ['keypoint']:
             model = KeypointPredictorModel(cfg.env, observation_dim, action_dim, 
                 ensemble_size=cfg.ensemble_size, lr=3e-4, activation="tanh", logger=L)
-            model_name = f"{feedback_type}_predictor_{cfg.structure}"
+            model_name = f"{label_type}_{feedback_type}_predictor_{cfg.structure}"
             
         model.train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
             data_size=pref_dataset["observations"].shape[0],
@@ -383,7 +384,10 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
         pref_dataset = [load_queries_with_indices(
             dataset, num_query // N_DATASET_PARTITION, len_query,
             saved_indices=[human_indices_1, human_indices_2],
-            saved_labels=human_labels, scripted_teacher=cfg.fake_label, modality=cfg.modality, partition_idx=p_idx, feedback_type=feedback_type)
+            saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+            comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
+            n_evaluation_categories=cfg.n_evaluation_categories, 
+            modality=cfg.modality, partition_idx=p_idx, feedback_type=feedback_type)
             for p_idx in range(N_DATASET_PARTITION)]
         # data_size = None means computing data size in function.
         model.split_train(n_epochs=cfg.n_epochs, dataset=pref_dataset,
@@ -393,15 +397,14 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
     print('Training completed successfully')
 
 
-def _load_data(cfg, suffix, feedback_type=None):
+def _load_data(cfg, feedback_type=None):
     if feedback_type:
-        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_{suffix}", feedback_type)
+        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_human_labels", feedback_type)
     else:
-        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_{suffix}")
+        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_human_labels")
     print(f"Load saved indices from {data_dir}.")
     if os.path.exists(data_dir):
         suffix = f"domain_{cfg.domain}_env_{cfg.env}"
-        # suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
         matched_file = []
         for file_name in os.listdir(data_dir):
             print(suffix)
@@ -429,14 +432,6 @@ def _load_data(cfg, suffix, feedback_type=None):
         for identifier in unpickled_data:
             assert unpickled_data[identifier]['query_length'] == query_length
             unpickled_data[identifier].pop('query_length')
-
-        # # add end indices if necessary
-        # for identifier in unpickled_data:
-        #     for data_type in ['indices', 'indices_1', 'indices_2']:
-        #         if data_type in unpickled_data[identifier]:
-        #             unpickled_data[identifier]['start_' + data_type] = unpickled_data[identifier].pop(data_type)
-        #             unpickled_data[identifier]['end_' + data_type] = unpickled_data[identifier]['start_' + data_type] + unpickled_data[identifier]['query_length']
-        #     unpickled_data[identifier].pop('query_length')
 
         # concat data if multiple datasets are given
         concatenated_unpickled_data = {}
@@ -471,27 +466,15 @@ def _load_data(cfg, suffix, feedback_type=None):
         out = ()
         for data_type in [
             'indices', 'indices_1', 'indices_2', 
-            # 'start_indices', 'start_indices_1', 'start_indices_2', 
-            # 'end_indices', 'end_indices_1', 'end_indices_2', 
             'human_label',
             'num_query', 'len_query'
         ]:
             if data_type in concatenated_unpickled_data:
                 out = out + (concatenated_unpickled_data[data_type],)
         out = out[0] if len(out) == 1 else out
-
-        # human_labels, indices_1_file, indices_2_file = sorted(matched_file)
-        # 
-        # with open(os.path.join(data_dir, human_labels), "rb") as fp:  # Unpickling
-        #     human_labels = pickle.load(fp)
-        # with open(os.path.join(data_dir, indices_1_file), "rb") as fp:  # Unpickling
-        #     human_indices_1 = pickle.load(fp)
-        # with open(os.path.join(data_dir, indices_2_file), "rb") as fp:  # Unpickling
-        #     human_indices_2 = pickle.load(fp)
     else:
         raise ValueError(f"Label not found")
     return out
-    # return human_indices_1, human_indices_2, human_labels
 
 
 if __name__ == '__main__':

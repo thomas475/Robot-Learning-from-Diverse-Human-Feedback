@@ -28,7 +28,7 @@ def load_offline_dataset(cfg, dataset_path=None):
     elif domain == 'antmaze':
         datasets = qlearning_ant_dataset(gym_env)
     elif domain == 'd4rl':
-        datasets = get_d4rl_dataset(gym_env)
+        datasets = d4rl.qlearning_dataset(gym_env)
     else:
         raise ValueError(f"{domain} undefined")
 
@@ -326,17 +326,6 @@ def qlearning_adroit_dataset(env, dataset=None, terminate_on_end=False, **kwargs
         "qvels": np.array(qvel_),
     }
 
-def get_d4rl_dataset(env):
-    import d4rl
-    dataset = d4rl.qlearning_dataset(env)
-    return dict(
-        observations=dataset['observations'],
-        actions=dataset['actions'],
-        next_observations=dataset['next_observations'],
-        rewards=dataset['rewards'],
-        dones=dataset['terminals'].astype(np.float32),
-    )
-
 
 class DatasetSampler:
     """Specially customized sampler for d4rl"""
@@ -432,7 +421,10 @@ class DatasetSampler:
         return start_indices_1, start_indices_2, end_indices_1, end_indices_2
     
     
-def get_fake_labels_with_indices(dataset, num_query, len_query, saved_indices, equivalence_threshold=0):
+def get_fake_labels_with_indices(dataset, num_query, len_query, saved_indices, equivalence_threshold=0, n_eval_categories=5, feedback_type='comparative'):
+    if feedback_type not in ['comparative', 'evaluative']:
+        raise NotImplementedError('Scripted labels are not supported for "' + feedback_type + '" feedback.')
+
     total_reward_seq_1, total_reward_seq_2 = np.zeros((num_query, len_query)), np.zeros((num_query, len_query))
     
     query_range = np.arange(num_query)
@@ -456,18 +448,29 @@ def get_fake_labels_with_indices(dataset, num_query, len_query, saved_indices, e
     
     batch = {}
     
-    # script_labels
-    sum_r_t_1 = np.sum(seg_reward_1, axis=1)
-    sum_r_t_2 = np.sum(seg_reward_2, axis=1)
-    binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
-    rational_labels = np.zeros((len(binary_label), 2))
-    rational_labels[np.arange(binary_label.size), binary_label] = 1.0
-    margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= equivalence_threshold).reshape(-1)
-    rational_labels[margin_index] = 0.5
-    
-    batch['script_labels'] = rational_labels
-    batch['start_indices'] = saved_indices[0]
-    batch['start_indices_2'] = saved_indices[1]
+    if feedback_type in ['comparative']:
+        sum_r_t_1 = np.sum(seg_reward_1, axis=1)
+        sum_r_t_2 = np.sum(seg_reward_2, axis=1)
+        binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
+        rational_labels = np.zeros((len(binary_label), 2))
+        rational_labels[np.arange(binary_label.size), binary_label] = 1.0
+        if equivalence_threshold > 0.0:
+            margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= equivalence_threshold).reshape(-1)
+            rational_labels[margin_index] = 0.5
+        batch['script_labels'] = rational_labels
+        batch['start_indices'] = saved_indices[0]
+        batch['start_indices_2'] = saved_indices[1]
+    elif feedback_type in ['evaluative']:
+        sum_r_t = np.sum(seg_reward_1, axis=1)
+        min_sum_r_t, max_sum_r_t = sum_r_t.min(), sum_r_t.max()
+        sum_r_t = (sum_r_t - min_sum_r_t) / (max_sum_r_t - min_sum_r_t) # normalize summed rewards
+        evaluation_upper_bounds = np.array([category / (n_eval_categories) for category in range(1, n_eval_categories + 1)])
+        categories = np.clip(np.sum(sum_r_t[:, np.newaxis] >= evaluation_upper_bounds, axis=1), 0, n_eval_categories - 1) # category is highest index that is smaller than upper bound
+        rational_labels = np.zeros((len(sum_r_t), n_eval_categories))
+        for i in range(len(rational_labels)):
+            rational_labels[i][categories[i]] = 1
+        batch['script_labels'] = rational_labels
+        batch['start_indices'] = saved_indices[0]
     
     return batch
 
@@ -501,17 +504,18 @@ def main(args):
     
     # script_labels, start_indices, start_indices_2
     # customize equivalence threshold
-    equivalence_threshold_dict = {"mujoco": 10, "antmaze": 0, "adroit": 0}
+    equivalence_threshold_dict = {"mujoco": 10, "antmaze": 0, "adroit": 0, "d4rl": 0}
     batch = get_fake_labels_with_indices(
         dataset,
         num_query=args.num_query,
         len_query=args.len_query,
         saved_indices=[start_indices_1, start_indices_2],
-        equivalence_threshold=equivalence_threshold_dict[args.domain]
+        equivalence_threshold=equivalence_threshold_dict[args.domain],
+        n_eval_categories=args.n_eval_categories,
+        feedback_type=args.feedback_type
     )
-    print(batch)
 
-    save_dir = os.path.join(args.save_dir, f"{args.env_name}_fake_labels")
+    save_dir = os.path.join(args.save_dir, f"{args.env_name}_fake_labels", args.feedback_type)
     identifier = str(uuid.uuid4().hex)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -521,20 +525,15 @@ def main(args):
     # args.num_query, f"{args.env_name}: {batch["start_indices"].shape[0]} / {batch["script_labels"].shape[0]}"
 
     print("save query indices and fake labels.")
-    with open(os.path.join(save_dir,
-                           "indices_1" + suffix + ".pkl"),
-              "wb",
-              ) as f:
-        pickle.dump(batch["start_indices"], f)
-    with open(os.path.join(save_dir,
-                           "indices_2" + suffix + ".pkl"),
-              "wb",
-              ) as f:
-        pickle.dump(batch["start_indices_2"], f)
-    with open(os.path.join(save_dir,
-                           "fake_label" + suffix + ".pkl"),
-              "wb",
-              ) as f:
+    if args.feedback_type in ['comparative']:
+        with open(os.path.join(save_dir, "indices_1" + suffix + ".pkl"), "wb") as f:
+            pickle.dump(batch["start_indices"], f)
+        with open(os.path.join(save_dir, "indices_2" + suffix + ".pkl"), "wb") as f:
+            pickle.dump(batch["start_indices_2"], f)
+    elif args.feedback_type in ['evaluative']:
+        with open(os.path.join(save_dir, "indices" + suffix + ".pkl"), "wb") as f:
+            pickle.dump(batch["start_indices"], f)
+    with open(os.path.join(save_dir, "fake_label" + suffix + ".pkl"),"wb") as f:
         pickle.dump(batch["script_labels"], f)
 
 
@@ -543,11 +542,12 @@ if __name__ == "__main__":
     
     parser.add_argument('--domain', type=str, default='d4rl')
     parser.add_argument('--env_name', type=str, default='kitchen-mixed-v0', help='Environment name.')
-    parser.add_argument('--save_dir', type=str, default='generated_fake_labels/', help='query path')
+    parser.add_argument('--save_dir', type=str, default='../generated_fake_labels/', help='query path')
     parser.add_argument('--num_query', type=int, default=100, help='number of query.')
     parser.add_argument('--len_query', type=int, default=200, help='length of each query.')
     parser.add_argument('--seed', type=int, default=777, help='seed for reproducibility.')
     parser.add_argument('--max_episode_length', type=int, default=280, help='maximum episode length.')
+    parser.add_argument('--n_eval_categories', type=int, default=5, help='number of evaluative feedback categoreis')
     parser.add_argument('--feedback_type', type=str, default='comparative', help='feedback type.')
     
     args = parser.parse_args()

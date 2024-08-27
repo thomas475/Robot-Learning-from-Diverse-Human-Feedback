@@ -17,9 +17,9 @@ feedback_type: [
 ]
 
 # scripted teacher
-fake_label: true # use scripted teacher to label queries instead of human feedback
-scripted_teacher_num_query: 100
-scripted_teacher_len_query: 50
+fake_label: false # use scripted teacher to label queries instead of human feedback
+n_evaluation_categories: 5
+comparison_equivalency_threshold: 0
 
 # learning
 ensemble_size: 1
