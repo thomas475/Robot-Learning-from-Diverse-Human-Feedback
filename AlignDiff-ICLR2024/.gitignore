@@ -1,7 +1,0 @@
-/datasets
-/results
-*/__pycache__
-*.log
-*.pkl
-*.txt
-*.zip
