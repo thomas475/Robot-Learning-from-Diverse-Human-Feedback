@@ -42,8 +42,7 @@
 <a href="https://github.com/pickxiguapi/Clean-Offline-RLHF">Clean Offline RLHF</a>
 </p>
 
-This is the **Uni-RLHF** platform implementation of the paper ***Uni-RLHF: Universal Platform and Benchmark Suite for Reinforcement Learning with Diverse Human Feedback*** by [Yifu Yuan](https://yifu-yuan.github.io/), [Jianye Hao](http://www.icdai.org/jianye.html), [Yi Ma](https://mayi1996.top/), [Zibin Dong](https://zibindong.github.io/), [Hebin Liang](), [Jinyi Liu](), [Zhixin Feng](), [Kai Zhao](), [Yan Zheng](https://yanzzzzz.github.io/). Uni-RLHF aims
-to provide a complete workflow from *real human feedback*, fostering progress in the development of RLHF in decision making domain. Here we develops a user-friendly annotation interface tailored to various feedback types, compatible with a wide range of mainstream RL environments. We then establish a systematic pipeline of crowdsourced annotations, resulting in [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Also, we provide **offline RLHF baselines** using collected feedback datasets and various design choice in the [Clean Offline RLHF](https://github.com/pickxiguapi/Clean-Offline-RLHF).
+This is the **Uni-RLHF** platform implementation of the paper ***Uni-RLHF: Universal Platform and Benchmark Suite for Reinforcement Learning with Diverse Human Feedback*** by [Yifu Yuan](https://yifu-yuan.github.io/), [Jianye Hao](http://www.icdai.org/jianye.html), [Yi Ma](https://mayi1996.top/), [Zibin Dong](https://zibindong.github.io/), [Hebin Liang](), [Jinyi Liu](), [Zhixin Feng](), [Kai Zhao](), [Yan Zheng](https://yanzzzzz.github.io/) with contributions by [Thomas Frank](). Uni-RLHF aims to provide a complete workflow from *real human feedback*, fostering progress in the development of RLHF in decision making domain. Here we develops a user-friendly annotation interface tailored to various feedback types, compatible with a wide range of mainstream RL environments. We then establish a systematic pipeline of crowdsourced annotations, resulting in [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Also, we provide **offline RLHF baselines** using collected feedback datasets and various design choice in the [Clean Offline RLHF](https://github.com/pickxiguapi/Clean-Offline-RLHF).
 
 <p align="center">
     <br>
@@ -75,34 +74,104 @@ to provide a complete workflow from *real human feedback*, fostering progress in
 <!-- GETTING STARTED -->
 ## 🛠️ Getting Started
 
-The Uni-RLHF platform consists of a vue front-end and a flask back-end. Also, we support a wide range of mainstream RL environments for annotation. For installation on Windows systems follow the guide [here](guide/windows.md), for Linux follow the guide [here](guide/linux.md).
+The Uni-RLHF platform consists of a vue front-end and a flask back-end. Also, we support a wide range of mainstream RL environments for annotation. The system only works on Linux.
 
-### Installation
-
-#### Platform
+### Installation on Linux (Ubuntu)
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/TJU-DRL-LAB/Uni-RLHF.git
+   git clone https://github.com/thomas475/Uni-RLHF.git
    cd Uni-RLHF
    ```
-2. Install virtualenv
+2. Setup Anaconda environment
     ```sh
     conda create -n rlhf python==3.9
     conda activate rlhf
+    ```
+3. Install Dependencies
+    ```sh
     pip install -r requirements.txt
     ```
-3. Install NPM packages
+4. Install NPM packages
    ```sh
-   npm install --prefix ./uni_rlhf/vue_part
+   cd uni_rlhf/vue_part
+   npm install
    ```
-5. Configure a MySQL Database
+5. Install hdf5
+    ```sh
+    conda install anaconda::hdf5
+    ```
+5. Install Redis
+   ```sh
+   sudo apt-get install redis
+   ```
+6. Configure the MySQL Database (adjust [user] and [password] accordingly)
+   ```
+   mysql -u [user] -p
+   ```
+   Then, in the MySQL environment enter:
+   ```
+   CREATE DATABASE uni_rlhf;
+   exit
+   ```
+   Afterwards, navigate to ``scripts/create_table.py`` and update the ``cfg`` variable:
+   ```
+   cfg = {
+       'host': 'localhost',
+       'port': 3306,
+       'username': [user],
+       'password': [password],
+       'database_name': 'uni_rlhf'
+   }
+   ```
+   Then, execute the script:
+   ```
+   cd scripts
+   py create_table.py
+   ```
+   Finally, go to `uni_rlhf/config.py` and set ``app.config['SQLALCHEMY_DATABASE_URI']`` to ``'mysql://[user]:[password]@localhost/uni_rlhf'``.
+   
+### MuJoCo
 
-#### Datasets
+Many of the datasets use MuJoCo as environment, so it should be installed, too. See [this](https://gist.github.com/saratrajput/60b1310fe9d9df664f9983b38b50d5da) for further details.
+
+1. Download the MuJoCo library:
+    ```sh
+    wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
+    ```
+2. Create the MuJoCo folder:
+    ```sh
+    mkdir ~/.mujoco
+    ```
+3. Extract the library to the MuJoCo folder:
+    ```sh
+    tar -xvf mujoco210-linux-x86_64.tar.gz -C ~/.mujoco/
+    ```
+4. Add environment variables (run `nano ~/.bashrc`):
+    ```sh
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mujoco210/bin
+    export MUJOCO_GL=egl
+    ```
+5. Reload the .bashrc file to register the changes.
+    ```sh
+    source ~/.bashrc
+    ```
+6. Install dependencies:
+    ```sh
+    conda install -c conda-forge patchelf fasteners cython==0.29.37 cffi pyglfw libllvm11 imageio glew glfw mesalib
+    sudo apt-get install libglew-dev
+    ```
+7. Test that the library is installed.
+    ```sh
+    cd ~/.mujoco/mujoco210/bin
+    ./simulate ../model/humanoid.xml
+    ``` 
+
+### Datasets
 
 Uni-RLHF supports the following classic datasets, a full list of all tasks is [available here](). Uni-RLHF also supports the uploading of customizaton datasets, as long as the dataset contains `observations` and `terminals` keys.
 
-* Install [D4RL](https://github.com/Farama-Foundation/D4RL) dependencies. Note that we made some small changes to the camera view for better visualisations.
+* Install [D4RL](https://github.com/Farama-Foundation/D4RL) dependencies. Note that we adapted the code to make the kitchen tasks work and made some small changes to the camera view for better visualisations.
    ```sh  
    cd d4rl
    pip install -e .
@@ -155,21 +224,59 @@ We also provide a Dockerfile for easy installation. You can build the docker ima
    cd docker && docker build . -t <user>/uni-rlhf:0.1.0
    ``` -->
 
-#### Setup
+### Running the Platform
 
-To run the platform, you should configure `SQLALCHEMY_DATABASE` in the `uni_rlhf/config.py`, then run with:        
+#### MySQL
+Start the MySQL server:
+   ```
+   sudo systemctl start mysql.service
+   mysql -u [user] -p
+   ```
+
+#### Redis
+Start the redis server:
+   ```
+   sudo service redis-server stop
+   redis-server
+   ```
+
+#### Running the App
+Now you can run the app from the base directory with:        
 
    ```python3 
+   conda activate rlhf
    python run.py
    ```
-App is running at: 
+The app is running at: 
    ```python3 
-   http://localhost:5001
+   http://localhost:8503
    ```
-You can kill all relative process with:
+You can kill all relative processes with:
    ```python3 
    python scripts/kill_process.py
    ```
+
+### Running the App remotely
+
+If you run the application remotely, you can access the interface through either port forwarding or public access. Make sure that port `8502` and `8503` are open on the server.
+
+#### Port Forwarding
+
+Open the terminal on your local machine and enter the following (adjust `[user]` and `[server-ip]` accordingly):
+    ssh -L 8502:localhost:8502 -L 8503:localhost:8503 [user]@[server-ip]
+    
+Then you can access the interface at `http://localhost:8503`.
+
+#### Public Access
+
+You can also let the application be publically accessible through its ip address. For this you need to modify the following variables before running the platform (adjust `[server-ip]` accordingly):
+
+1. in `uni_rlhf/config.json` set the value of `baseUrl` to `[server-ip]`
+2. in `uni_rlhf/vue_part/src/store/index.js` in the json `initialState` set the value of `baseUrl` to `http://[server-ip]:8502`
+
+Then you can access the interface at `http://[server-ip]:8503`.
+
+> **NOTE**: If `[server-ip]` is an ipv6-address and you use it in an http-request, you need to put brackets around it. For example, if the ipv6-address is `0:0:0:0:0:0:0:1` the corresponding http-request would be `http://[0:0:0:0:0:0:0:1]:8502`.
 
 <!-- USAGE EXAMPLES -->
 ## 💻 Usage

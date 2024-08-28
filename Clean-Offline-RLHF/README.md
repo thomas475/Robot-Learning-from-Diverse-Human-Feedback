@@ -30,19 +30,70 @@ in the [smarts branch](https://github.com/pickxiguapi/Clean-Offline-RLHF/tree/sm
 
 ## 🛠️ Getting Started
 
-Clone this repository.
-```bash
-git clone https://github.com/pickxiguapi/Clean-Offline-RLHF.git
-cd Clean-Offline-RLHF
-```
-Install PyTorch & torchvision.
-```bash
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-```
-Install extra dependencies.
-```bash
-pip install -r requirements/requirements.txt
-```
+### Installation on Linux (Ubuntu)
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/thomas475/Clean-Offline-RLHF.git
+   cd Clean-Offline-RLHF
+   ```
+2. Setup Anaconda environment
+    ```sh
+    conda create -n rlhf python==3.9
+    conda activate rlhf
+    ```
+3. Install Dependencies
+    ```sh
+    pip install -r requirements.txt
+    ```
+4. Install hdf5
+    ```sh
+    conda install anaconda::hdf5
+    ```
+5. Install Torch
+    * For GPU Support (CUDA):
+
+        ```pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117```
+    
+    * For CPU Only:
+    
+        ```pip install torch==1.13.1+cpu torchvision==0.14.1+cpu torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cpu```
+   
+### MuJoCo
+
+Many of the datasets use MuJoCo as environment, so it should be installed, too. See [this](https://gist.github.com/saratrajput/60b1310fe9d9df664f9983b38b50d5da) for further details.
+
+1. Download the MuJoCo library:
+    ```sh
+    wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
+    ```
+2. Create the MuJoCo folder:
+    ```sh
+    mkdir ~/.mujoco
+    ```
+3. Extract the library to the MuJoCo folder:
+    ```sh
+    tar -xvf mujoco210-linux-x86_64.tar.gz -C ~/.mujoco/
+    ```
+4. Add environment variables (run `nano ~/.bashrc`):
+    ```sh
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mujoco210/bin
+    export MUJOCO_GL=egl
+    ```
+5. Reload the .bashrc file to register the changes.
+    ```sh
+    source ~/.bashrc
+    ```
+6. Install dependencies:
+    ```sh
+    conda install -c conda-forge patchelf fasteners cython==0.29.37 cffi pyglfw libllvm11 imageio glew glfw mesalib
+    sudo apt-get install libglew-dev
+    ```
+7. Test that the library is installed.
+    ```sh
+    cd ~/.mujoco/mujoco210/bin
+    ./simulate ../model/humanoid.xml
+    ``` 
 
 ## 💻 Usage
 
@@ -54,51 +105,40 @@ The processed crowdsourced (CS) and scripted teacher (ST) labels are located at 
 
 Note: for comparison and validation purposes, we provide fast track for scripted teacher (ST) label generation in `fast_track/generate_d4rl_fake_labels.py`.
 
-### Pre-train Reward Models
+### Prepare Crowdsourced Data
 
-Here we provided an example of `CS-MLP` method for `walker2d-medium-expert-v2` task, and you can customize it in configuration file `rlhf/cfgs/default.yaml`.
+The exported labels from the Uni-RLHF-Platform have to be transformed into an approprite format first. To do this the following script (replace `[dir_path]` with the location of the raw labels):
+```bash
+cd scripts
+python3 transform_raw_labels.py --data_dir [dir_path]
+```
+
+### Pre-train Auxiliary Models
+
+You can configure the training of the auxiliary models (reward model, attribute mapping model, keypoint prediction model) by adjusting the configuration file `rlhf/cfgs/default.yaml`. To then train these models you run the following command:
 ```bash
 cd rlhf
-python train_model.py domain=mujoco env=walker2d-medium-expert-v2 \
-modality=state structure=mlp fake_label=false ensemble_size=3 n_epochs=50 \
-num_query=2000 len_query=200 data_dir="../crowdsource_human_labels" \
-seed=0 exp_name="CS-MLP"
+python3 train_model.py 
 ```
 
-For more environment of reward model training, we provide the bash files:
+### Train Offline RL with Pre-trained Auxiliary Models 
+
+Following Uni-RLHF codebase implemeration, we modified `IQL`, `CQL` and `TD3BC` algorithm. You can adjust the details of the experiments in the `TrainConfig` objects in the algorithm implementations found in `/algorithms/offline`, as well as in the files in the `/config` directory.
+
+Example: Train with implicit Q-learning. The log will be uploaded to [wandb](https://wandb.ai/site).
 ```bash
-cd rlhf
-bash scripts/train_mujoco.sh
-bash scripts/train_antmze.sh
-bash scripts/train_adroit.sh
+python3 algorithms/offline/iql_p.py
 ```
 
-### Train Offline RL with Pre-trained Rewards 
+These are the possible variations of algorithms, feedback types, label types, and auxiliary model types:
 
-Following Uni-RLHF codebase implemeration, we modified `IQL`, `CQL` and `TD3BC` algorithm.
+| Algorithm | Feedback Type | Label Type | Auxiliary Model Type |
+|-----------|---------------|------------|----------------------|
+| IQL       | COMPARATIVE   | CS         | MLP                  |
+| CQL       | ATTRIBUTE     | ST         | TFM                  |
+| TD3BC     | EVALUATIVE    |            | CNN                  |
+|           | KEYPOINT      |            |                      |
 
-Example: Train `IQL` with `CS-MLP` reward model. The log will be uploaded to [wandb](https://wandb.ai/site).
-```bash
-python algorithms/offline/iql_p.py --device "cuda:0" --seed 0 \
---reward_model_path "path/to/reward_model" --config_path ./configs/offline/iql/walker/medium_expert_v2.yaml \
---reward_model_type mlp --seed 0 --name CS-MLP-IQL-Walker-medium-expert-v2
-```
-
-You can have any combination of algorithms, label types and reward model types:
-
-| Algorithm | Label Type | Reward Model Type |
-|-----------|------------|-------------------|
-| IQL       | CS         | MLP               |
-| CQL       | ST         | TFM               |
-| TD3BC     |            | CNN               |
-
-
-For more environment of policy training, we provide the bash files:
-```bash
-bash scripts/run_mujoco.sh
-bash scripts/run_antmze.sh
-bash scripts/run_adroit.sh
-```
 
 <!-- LICENSE -->
 ## 🏷️ License
