@@ -155,6 +155,9 @@ def replace_dataset_reward(
     Then, combine the normalized rewards into a single reward signal using linear interpolation.
     Finally, replace the original rewards with this new signal.
     """
+    if len(reward_models) == 0:
+        return dataset
+
     data_size = dataset["rewards"].shape[0]
     interval = int(data_size / batch_size) + 1
     new_r = np.zeros((len(reward_models),) + dataset["rewards"].shape)
