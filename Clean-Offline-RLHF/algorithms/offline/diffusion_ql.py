@@ -33,10 +33,6 @@ from rlhf.utils import replace_dataset_reward, load_reward_models
 TensorBatch = List[torch.Tensor]
 
 
-EXP_ADV_MAX = 100.0
-LOG_STD_MIN = -20.0
-LOG_STD_MAX = 2.0
-
 # like in the original repository
 ENV_PARAMS = {
     'kitchen-complete-v0':{'lr': 3e-4, 'eta': 0.005, 'max_q_backup': False,  'reward_tune': 'no', 'eval_freq': 50, 'num_epochs': 250 , 'gn': 9.0,  'top_k': 2},
@@ -51,9 +47,9 @@ class TrainConfig:
     device: str = "cpu"
     env: str = "kitchen-mixed-v0"  # OpenAI gym environment name
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
-    eval_freq: int = int(10)  # How often (time steps) we evaluate - default int(5e3)
+    eval_freq: int = int(1)  # How often (time steps) we evaluate - default int(5e3)
     n_episodes: int = 1  # How many episodes run during evaluation - default 10
-    max_timesteps: int = int(100)  # Max time steps to run environment - default int(1e6)
+    max_timesteps: int = int(1)  # Max time steps to run environment - default int(1e6)
     checkpoints_path: Optional[str] = None  # Save path
     load_model: str = None  # Model load file name, None doesn't load anything
     # Diffusion-QL
@@ -85,7 +81,16 @@ class TrainConfig:
     keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/human_keypoint_predictor_mlp.pt"
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
-        self.name = f"{self.name}-{self.env}"
+        # self.name = f"{self.name}-{self.env}"
+        model_paths = self.reward_model_paths.copy()
+        if hasattr(self, 'keypoint_predictor_path'):
+            model_paths.append(self.keypoint_predictor_path)
+        indicators = [self.env, self.group]
+        for model_path in model_paths:
+            file_name = os.path.splitext(os.path.basename(model_path))[0]
+            indicators.append(''.join([part.lower().capitalize() for part in file_name.split('_')]))
+        indicators.append(str(self.seed))
+        self.name = '_'.join(indicators)
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
 
@@ -125,68 +130,6 @@ def wrap_env(
     if reward_scale != 1.0:
         env = gym.wrappers.TransformReward(env, scale_reward)
     return env
-
-
-# class ReplayBuffer:
-#     def __init__(
-#         self,
-#         state_dim: int,
-#         action_dim: int,
-#         buffer_size: int,
-#         device: str = "cpu",
-#     ):
-#         self._buffer_size = buffer_size
-#         self._pointer = 0
-#         self._size = 0
-
-#         self._states = torch.zeros(
-#             (buffer_size, state_dim), dtype=torch.float32, device=device
-#         )
-#         self._actions = torch.zeros(
-#             (buffer_size, action_dim), dtype=torch.float32, device=device
-#         )
-#         self._rewards = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
-#         self._next_states = torch.zeros(
-#             (buffer_size, state_dim), dtype=torch.float32, device=device
-#         )
-#         self._dones = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
-#         self._device = device
-
-#     def _to_tensor(self, data: np.ndarray) -> torch.Tensor:
-#         return torch.tensor(data, dtype=torch.float32, device=self._device)
-
-#     # Loads data in d4rl format, i.e. from Dict[str, np.array].
-#     def load_d4rl_dataset(self, data: Dict[str, np.ndarray]):
-#         if self._size != 0:
-#             raise ValueError("Trying to load data into non-empty replay buffer")
-#         n_transitions = data["observations"].shape[0]
-#         if n_transitions > self._buffer_size:
-#             raise ValueError(
-#                 "Replay buffer is smaller than the dataset you are trying to load!"
-#             )
-#         self._states[:n_transitions] = self._to_tensor(data["observations"])
-#         self._actions[:n_transitions] = self._to_tensor(data["actions"])
-#         self._rewards[:n_transitions] = self._to_tensor(data["rewards"][..., None])
-#         self._next_states[:n_transitions] = self._to_tensor(data["next_observations"])
-#         self._dones[:n_transitions] = self._to_tensor(data["terminals"][..., None])
-#         self._size += n_transitions
-#         self._pointer = min(self._size, n_transitions)
-
-#         print(f"Dataset size: {n_transitions}")
-
-#     def sample(self, batch_size: int) -> TensorBatch:
-#         indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
-#         states = self._states[indices]
-#         actions = self._actions[indices]
-#         rewards = self._rewards[indices]
-#         next_states = self._next_states[indices]
-#         dones = self._dones[indices]
-#         return [states, actions, rewards, next_states, dones]
-
-#     def add_transition(self):
-#         # Use this method to add new data into the replay buffer during fine-tuning.
-#         # I left it unimplemented since now we do not do fine-tuning.
-#         raise NotImplementedError
 
 
 def set_seed(

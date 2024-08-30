@@ -85,7 +85,16 @@ class TrainConfig:
     
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
-        self.name = f"{self.name}-{self.env}"
+        # self.name = f"{self.name}-{self.env}"
+        model_paths = self.reward_model_paths.copy()
+        if hasattr(self, 'keypoint_predictor_path'):
+            model_paths.append(self.keypoint_predictor_path)
+        indicators = [self.env, self.group]
+        for model_path in model_paths:
+            file_name = os.path.splitext(os.path.basename(model_path))[0]
+            indicators.append(''.join([part.lower().capitalize() for part in file_name.split('_')]))
+        indicators.append(str(self.seed))
+        self.name = '_'.join(indicators)
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
 
