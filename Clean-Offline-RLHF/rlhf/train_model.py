@@ -209,7 +209,13 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
         'epoch_' + str(cfg.n_epochs) + '_query_' + str(num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
     )
     model_dir = os.path.join(log_dir, 'models')
-    label_type = 'scripted' if cfg.fake_label else 'human'
+    if cfg.fake_label:
+        if cfg.relabel_human_labels:
+            label_type = 'relabeled'
+        else:
+            label_type = 'scripted'
+    else:
+        label_type = 'human'
     model_name = f"{label_type}_{feedback_type}_reward_{cfg.structure}"
     print("Logging directory:", log_dir)
     L = logger.Logger(log_dir, cfg)
@@ -332,34 +338,34 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
                 relabel_human_labels=cfg.relabel_human_labels, comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
                 n_evaluation_categories=cfg.n_evaluation_categories, modality=cfg.modality, feedback_type='comparative')
         
-        # if we use evaluative feedback, we first have to determine rating boundaries
-        if feedback_type in ['evaluative']:
-            print(f"Generating rating boundaries for {cfg.env} training dataset.")
-            trajectory_reward_sums = sorted(list(np.sum(pref_dataset['rewards'], axis=1)))
+        # # if we use evaluative feedback, we first have to determine rating boundaries
+        # if feedback_type in ['evaluative']:
+        #     print(f"Generating rating boundaries for {cfg.env} training dataset.")
+        #     trajectory_reward_sums = sorted(list(np.sum(pref_dataset['rewards'], axis=1)))
             
-            ratings = np.argmax(pref_dataset['labels'], axis=1)
+        #     ratings = np.argmax(pref_dataset['labels'], axis=1)
 
-            # get frequencies of rating categories
-            n_rating_categories = max(ratings.astype(int)) + 1
-            rating_categories, counts = np.unique(ratings.astype(int), return_counts=True)
-            rating_category_counts = np.zeros(n_rating_categories)
-            rating_category_counts[rating_categories] = counts
+        #     # get frequencies of rating categories
+        #     n_rating_categories = max(ratings.astype(int)) + 1
+        #     rating_categories, counts = np.unique(ratings.astype(int), return_counts=True)
+        #     rating_category_counts = np.zeros(n_rating_categories)
+        #     rating_category_counts[rating_categories] = counts
 
-            # generate rating boundaries
-            rating_boundaries = np.zeros(n_rating_categories + 1)
-            rating_boundaries[0] = trajectory_reward_sums[0]
-            rating_boundaries[n_rating_categories] = trajectory_reward_sums[-1]
-            for i in range(1, n_rating_categories):
-                cumulative_count = np.sum(rating_category_counts[:i]).astype(int) - 1
-                rating_boundaries[i] = (trajectory_reward_sums[cumulative_count] + trajectory_reward_sums[cumulative_count + 1]) / 2
+        #     # generate rating boundaries
+        #     rating_boundaries = np.zeros(n_rating_categories + 1)
+        #     rating_boundaries[0] = trajectory_reward_sums[0]
+        #     rating_boundaries[n_rating_categories] = trajectory_reward_sums[-1]
+        #     for i in range(1, n_rating_categories):
+        #         cumulative_count = np.sum(rating_category_counts[:i]).astype(int) - 1
+        #         rating_boundaries[i] = (trajectory_reward_sums[cumulative_count] + trajectory_reward_sums[cumulative_count + 1]) / 2
             
-            # normalize rewards by mapping them to 0 to 1
-            normalizer = MinMaxScaler(rating_boundaries[0], rating_boundaries[-1])
-            pref_dataset['context'] = {
-                'boundaries': normalizer.transform(rating_boundaries),
-                'min_unnormalized_reward_sum': rating_boundaries[0],
-                'max_unnormalized_reward_sum': rating_boundaries[-1]
-            }
+        #     # normalize rewards by mapping them to 0 to 1
+        #     normalizer = MinMaxScaler(rating_boundaries[0], rating_boundaries[-1])
+        #     pref_dataset['context'] = {
+        #         'boundaries': normalizer.transform(rating_boundaries),
+        #         'min_unnormalized_reward_sum': rating_boundaries[0],
+        #         'max_unnormalized_reward_sum': rating_boundaries[-1]
+        #     }
 
         # train the models
         if feedback_type in ['comparative', 'attribute', 'evaluative']:
@@ -421,8 +427,10 @@ def _load_data(cfg, feedback_type=None):
     if not os.path.exists(data_dir):
         raise ValueError(f"Label not found")
     
-    suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
-    # suffix = f"domain_{cfg.domain}_env_{cfg.env}"
+    if "num_query" in cfg and "len_query" in cfg:
+        suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
+    else:
+        suffix = f"domain_{cfg.domain}_env_{cfg.env}"
     matched_file = []
     for file_name in os.listdir(data_dir):
         print(suffix)

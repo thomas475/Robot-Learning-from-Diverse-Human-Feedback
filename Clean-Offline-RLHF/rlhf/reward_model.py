@@ -155,30 +155,32 @@ class RewardModel(object):
             obs = batch['observations']  # batch_size * len_query * obs_dim
             act = batch['actions']  # batch_size * len_query * action_dim
             labels = batch['labels']  # batch_size * (one-hot, for rating)
-            context = batch['context']
-            boundaries = context['boundaries']
-            normalizer = utils.MinMaxScaler(
-                context['min_unnormalized_reward_sum'], 
-                context['max_unnormalized_reward_sum']
-            )
             s_a = np.concatenate([obs, act], axis=-1)
 
             # get logits
             r_hat = self.r_hat_member(s_a, member)  # batch_size * len_query * 1
             r_hat = r_hat.sum(axis=1)  # batch_size * 1
-            r_tilde = normalizer.transform(r_hat)
+            r_tilde  = ((r_hat) - (torch.min(r_hat))) / ((torch.max(r_hat)) - (torch.min(r_hat)))
 
             # get labels
-            # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
             labels = torch.from_numpy(labels).to(self.device)
 
+            # get boundaries
+            sorted_r_tilde = r_tilde[r_tilde[:, 0].sort()[1]]
+            category_counts = torch.sum(labels, dim=0).numpy()
+            n_rating_categories = len(category_counts)
+            boundaries = np.zeros(n_rating_categories + 1)
+            boundaries[0] = sorted_r_tilde[0]
+            boundaries[n_rating_categories] = sorted_r_tilde[-1]
+            for i in range(1, n_rating_categories):
+                cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
+                boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
+            
             # compute loss
             curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)
 
             # compute acc
-            prediction = np.argmax(np.clip(((
-                r_tilde.unsqueeze(1) < torch.tensor(boundaries).unsqueeze(0)
-            ) == 1).int().argmax(dim=1).numpy(), 0, len(labels) - 1), axis=1)
+            prediction = torch.clip(torch.sum(r_tilde > torch.tensor(boundaries), dim=1) - 1, 0, n_rating_categories - 1).detach().numpy()
             target = np.argmax(labels.numpy(), axis=1)
             correct = sum(prediction == target) / len(labels)
 
@@ -203,11 +205,12 @@ class RewardModel(object):
         return -(target * logprobs).sum() / input.shape[0]
     
     def multiclassXEnt_loss(self, input, target, boundaries):
-        exps = torch.zeros((len(boundaries) - 1, len(input)))
-        for i in range(len(boundaries) - 1):
-            exps[i] = torch.exp(((input - boundaries[i]) * (input - boundaries[i + 1])).squeeze())
-        p = (exps / torch.sum(exps, dim=0)).T
-        return -(target * torch.log(p)).sum() / input.shape[0]
+        q_list = []
+        for i in range(target.shape[1]):
+            q_list.append(- (input - boundaries[i]) * (input - boundaries[i + 1]))
+        q = torch.cat(q_list, axis=-1)
+        return nn.CrossEntropyLoss()(q, torch.argmax(target, dim=1))
+
 
 
 class CNNRewardModel(RewardModel):
