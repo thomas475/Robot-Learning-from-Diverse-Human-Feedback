@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from agents.helpers import SinusoidalPosEmb
+from diffusion_ql.agents.helpers import SinusoidalPosEmb
 
 
 class MLP(nn.Module):

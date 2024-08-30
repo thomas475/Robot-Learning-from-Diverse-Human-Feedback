@@ -78,11 +78,11 @@ class TrainConfig:
     group: str = "CQL"
     name: str = "exp"
     reward_model_paths: list = field(default_factory=lambda: [
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/comparative_reward_mlp.pt",
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/evaluative_reward_mlp.pt",
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/scripted_comparative_reward_mlp.pt",
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/scripted_evaluative_reward_mlp.pt",
     ])
-    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/keypoint_predictor_mlp.pt"
-
+    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/human_keypoint_predictor_mlp.pt"
+    
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         self.name = f"{self.name}-{self.env}"

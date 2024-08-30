@@ -13,11 +13,15 @@ import gym
 import numpy as np
 import pyrallis
 import torch
-from torch.distributions import MultivariateNormal, Normal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
+
+from diffusion_ql.agents.diffusion import Diffusion
+from diffusion_ql.agents.model import MLP
+from diffusion_ql.agents.helpers import EMA
+from diffusion_ql.utils.data_sampler import Data_Sampler
 
 APP_DIR= os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(APP_DIR)
@@ -33,6 +37,13 @@ EXP_ADV_MAX = 100.0
 LOG_STD_MIN = -20.0
 LOG_STD_MAX = 2.0
 
+# like in the original repository
+ENV_PARAMS = {
+    'kitchen-complete-v0':{'lr': 3e-4, 'eta': 0.005, 'max_q_backup': False,  'reward_tune': 'no', 'eval_freq': 50, 'num_epochs': 250 , 'gn': 9.0,  'top_k': 2},
+    'kitchen-partial-v0': {'lr': 3e-4, 'eta': 0.005, 'max_q_backup': False,  'reward_tune': 'no', 'eval_freq': 50, 'num_epochs': 1000, 'gn': 10.0, 'top_k': 2},
+    'kitchen-mixed-v0':   {'lr': 3e-4, 'eta': 0.005, 'max_q_backup': False,  'reward_tune': 'no', 'eval_freq': 50, 'num_epochs': 1000, 'gn': 10.0, 'top_k': 0}
+}
+
 
 @dataclass
 class TrainConfig:
@@ -44,30 +55,34 @@ class TrainConfig:
     n_episodes: int = 1  # How many episodes run during evaluation - default 10
     max_timesteps: int = int(100)  # Max time steps to run environment - default int(1e6)
     checkpoints_path: Optional[str] = None  # Save path
-    load_model: str = ""  # Model load file name, "" doesn't load
-    # IQL
+    load_model: str = None  # Model load file name, None doesn't load anything
+    # Diffusion-QL
     buffer_size: int = 2_000_000  # Replay buffer size
     batch_size: int = 256  # Batch size for all networks
     discount: float = 0.99  # Discount factor
     tau: float = 0.005  # Target network update rate
-    beta: float = 10.0  # Inverse temperature. Small beta -> BC, big beta -> maximizing Q
-    iql_tau: float = 0.9  # Coefficient for asymmetric loss
-    iql_deterministic: bool = False  # Use deterministic actor
     normalize: bool = True  # Normalize states
     normalize_reward: bool = False  # Normalize reward
-    vf_lr: float = 3e-4  # V function learning rate
-    qf_lr: float = 3e-4  # Critic learning rate
-    actor_lr: float = 3e-4  # Actor learning rate
-    actor_dropout: Optional[float] = None  # Adroit uses dropout for policy network
+    max_q_backup=False
+    eta=0.005
+    beta_schedule='linear'
+    n_timesteps=100
+    ema_decay=0.995
+    step_start_ema=1000
+    update_ema_every=5
+    lr=3e-4
+    lr_decay=False
+    lr_maxt=1000
+    grad_norm=10
     # Wandb logging
     project: str = "Uni-RLHF"
-    group: str = "IQL"
+    group: str = "DiffusionQL"
     name: str = "exp"
     reward_model_paths: list = field(default_factory=lambda: [
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/comparative_reward_mlp.pt",
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/evaluative_reward_mlp.pt",
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/scripted_comparative_reward_mlp.pt",
+        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/scripted_evaluative_reward_mlp.pt",
     ])
-    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/keypoint_predictor_mlp.pt"
+    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/human_keypoint_predictor_mlp.pt"
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         self.name = f"{self.name}-{self.env}"
@@ -112,66 +127,66 @@ def wrap_env(
     return env
 
 
-class ReplayBuffer:
-    def __init__(
-        self,
-        state_dim: int,
-        action_dim: int,
-        buffer_size: int,
-        device: str = "cpu",
-    ):
-        self._buffer_size = buffer_size
-        self._pointer = 0
-        self._size = 0
+# class ReplayBuffer:
+#     def __init__(
+#         self,
+#         state_dim: int,
+#         action_dim: int,
+#         buffer_size: int,
+#         device: str = "cpu",
+#     ):
+#         self._buffer_size = buffer_size
+#         self._pointer = 0
+#         self._size = 0
 
-        self._states = torch.zeros(
-            (buffer_size, state_dim), dtype=torch.float32, device=device
-        )
-        self._actions = torch.zeros(
-            (buffer_size, action_dim), dtype=torch.float32, device=device
-        )
-        self._rewards = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
-        self._next_states = torch.zeros(
-            (buffer_size, state_dim), dtype=torch.float32, device=device
-        )
-        self._dones = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
-        self._device = device
+#         self._states = torch.zeros(
+#             (buffer_size, state_dim), dtype=torch.float32, device=device
+#         )
+#         self._actions = torch.zeros(
+#             (buffer_size, action_dim), dtype=torch.float32, device=device
+#         )
+#         self._rewards = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
+#         self._next_states = torch.zeros(
+#             (buffer_size, state_dim), dtype=torch.float32, device=device
+#         )
+#         self._dones = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
+#         self._device = device
 
-    def _to_tensor(self, data: np.ndarray) -> torch.Tensor:
-        return torch.tensor(data, dtype=torch.float32, device=self._device)
+#     def _to_tensor(self, data: np.ndarray) -> torch.Tensor:
+#         return torch.tensor(data, dtype=torch.float32, device=self._device)
 
-    # Loads data in d4rl format, i.e. from Dict[str, np.array].
-    def load_d4rl_dataset(self, data: Dict[str, np.ndarray]):
-        if self._size != 0:
-            raise ValueError("Trying to load data into non-empty replay buffer")
-        n_transitions = data["observations"].shape[0]
-        if n_transitions > self._buffer_size:
-            raise ValueError(
-                "Replay buffer is smaller than the dataset you are trying to load!"
-            )
-        self._states[:n_transitions] = self._to_tensor(data["observations"])
-        self._actions[:n_transitions] = self._to_tensor(data["actions"])
-        self._rewards[:n_transitions] = self._to_tensor(data["rewards"][..., None])
-        self._next_states[:n_transitions] = self._to_tensor(data["next_observations"])
-        self._dones[:n_transitions] = self._to_tensor(data["terminals"][..., None])
-        self._size += n_transitions
-        self._pointer = min(self._size, n_transitions)
+#     # Loads data in d4rl format, i.e. from Dict[str, np.array].
+#     def load_d4rl_dataset(self, data: Dict[str, np.ndarray]):
+#         if self._size != 0:
+#             raise ValueError("Trying to load data into non-empty replay buffer")
+#         n_transitions = data["observations"].shape[0]
+#         if n_transitions > self._buffer_size:
+#             raise ValueError(
+#                 "Replay buffer is smaller than the dataset you are trying to load!"
+#             )
+#         self._states[:n_transitions] = self._to_tensor(data["observations"])
+#         self._actions[:n_transitions] = self._to_tensor(data["actions"])
+#         self._rewards[:n_transitions] = self._to_tensor(data["rewards"][..., None])
+#         self._next_states[:n_transitions] = self._to_tensor(data["next_observations"])
+#         self._dones[:n_transitions] = self._to_tensor(data["terminals"][..., None])
+#         self._size += n_transitions
+#         self._pointer = min(self._size, n_transitions)
 
-        print(f"Dataset size: {n_transitions}")
+#         print(f"Dataset size: {n_transitions}")
 
-    def sample(self, batch_size: int) -> TensorBatch:
-        indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
-        states = self._states[indices]
-        actions = self._actions[indices]
-        rewards = self._rewards[indices]
-        next_states = self._next_states[indices]
-        dones = self._dones[indices]
-        return [states, actions, rewards, next_states, dones]
+#     def sample(self, batch_size: int) -> TensorBatch:
+#         indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
+#         states = self._states[indices]
+#         actions = self._actions[indices]
+#         rewards = self._rewards[indices]
+#         next_states = self._next_states[indices]
+#         dones = self._dones[indices]
+#         return [states, actions, rewards, next_states, dones]
 
-    def add_transition(self):
-        # Use this method to add new data into the replay buffer during fine-tuning.
-        # I left it unimplemented since now we do not do fine-tuning.
-        raise NotImplementedError
+#     def add_transition(self):
+#         # Use this method to add new data into the replay buffer during fine-tuning.
+#         # I left it unimplemented since now we do not do fine-tuning.
+#         raise NotImplementedError
 
 
 def set_seed(
@@ -209,7 +224,7 @@ def eval_actor(
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
-            action = actor.act(state, device)
+            action = actor(torch.tensor(state, dtype=torch.float32).unsqueeze(0)).squeeze(0).numpy()
             state, reward, done, _ = env.step(action)
             episode_reward += reward
         episode_rewards.append(episode_reward)
@@ -246,282 +261,194 @@ def asymmetric_l2_loss(u: torch.Tensor, tau: float) -> torch.Tensor:
     return torch.mean(torch.abs(tau - (u < 0).float()) * u**2)
 
 
-class Squeeze(nn.Module):
-    def __init__(self, dim=-1):
-        super().__init__()
-        self.dim = dim
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super(Critic, self).__init__()
+        self.q1_model = nn.Sequential(nn.Linear(state_dim + action_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, 1))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x.squeeze(dim=self.dim)
+        self.q2_model = nn.Sequential(nn.Linear(state_dim + action_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.Mish(),
+                                      nn.Linear(hidden_dim, 1))
 
+    def forward(self, state, action):
+        x = torch.cat([state, action], dim=-1)
+        return self.q1_model(x), self.q2_model(x)
 
-class MLP(nn.Module):
-    def __init__(
-        self,
-        dims,
-        activation_fn: Callable[[], nn.Module] = nn.ReLU,
-        output_activation_fn: Callable[[], nn.Module] = None,
-        squeeze_output: bool = False,
-        dropout: Optional[float] = None,
-    ):
-        super().__init__()
-        n_dims = len(dims)
-        if n_dims < 2:
-            raise ValueError("MLP requires at least two dims (input and output)")
+    def q1(self, state, action):
+        x = torch.cat([state, action], dim=-1)
+        return self.q1_model(x)
 
-        layers = []
-        for i in range(n_dims - 2):
-            layers.append(nn.Linear(dims[i], dims[i + 1]))
-            layers.append(activation_fn())
-        if dropout is not None:
-            layers.append(nn.Dropout(dropout))
-        layers.append(nn.Linear(dims[-2], dims[-1]))
-        if output_activation_fn is not None:
-            layers.append(output_activation_fn())
-        if squeeze_output:
-            if dims[-1] != 1:
-                raise ValueError("Last dim must be 1 when squeezing")
-            layers.append(Squeeze(-1))
-        self.net = nn.Sequential(*layers)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+    def q_min(self, state, action):
+        q1, q2 = self.forward(state, action)
+        return torch.min(q1, q2)
 
 
-class GaussianPolicy(nn.Module):
-    def __init__(
-        self,
-        state_dim: int,
-        act_dim: int,
-        max_action: float,
-        hidden_dim: int = 256,
-        n_hidden: int = 2,
-        dropout: Optional[float] = None,
-    ):
-        super().__init__()
-        self.net = MLP(
-            [state_dim, *([hidden_dim] * n_hidden), act_dim],
-            output_activation_fn=nn.Tanh,
-        )
-        self.log_std = nn.Parameter(torch.zeros(act_dim, dtype=torch.float32))
+class Diffusion_QL(object):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 max_action,
+                 device,
+                 discount,
+                 tau,
+                 max_q_backup=False,
+                 eta=1.0,
+                 beta_schedule='linear',
+                 n_timesteps=100,
+                 ema_decay=0.995,
+                 step_start_ema=1000,
+                 update_ema_every=5,
+                 lr=3e-4,
+                 lr_decay=False,
+                 lr_maxt=1000,
+                 grad_norm=1.0,
+                 ):
+
+        self.model = MLP(state_dim=state_dim, action_dim=action_dim, device=device)
+
+        self.actor = Diffusion(state_dim=state_dim, action_dim=action_dim, model=self.model, max_action=max_action,
+                               beta_schedule=beta_schedule, n_timesteps=n_timesteps,).to(device)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
+
+        self.lr_decay = lr_decay
+        self.grad_norm = grad_norm
+
+        self.step = 0
+        self.step_start_ema = step_start_ema
+        self.ema = EMA(ema_decay)
+        self.ema_model = copy.deepcopy(self.actor)
+        self.update_ema_every = update_ema_every
+
+        self.critic = Critic(state_dim, action_dim).to(device)
+        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
+
+        if lr_decay:
+            self.actor_lr_scheduler = CosineAnnealingLR(self.actor_optimizer, T_max=lr_maxt, eta_min=0.)
+            self.critic_lr_scheduler = CosineAnnealingLR(self.critic_optimizer, T_max=lr_maxt, eta_min=0.)
+
+        self.state_dim = state_dim
         self.max_action = max_action
-
-    def forward(self, obs: torch.Tensor) -> Normal:
-        mean = self.net(obs)
-        std = torch.exp(self.log_std.clamp(LOG_STD_MIN, LOG_STD_MAX))
-        return Normal(mean, std)
-
-    @torch.no_grad()
-    def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        dist = self(state)
-        action = dist.mean if not self.training else dist.sample()
-        action = torch.clamp(self.max_action * action, -self.max_action, self.max_action)
-        return action.cpu().data.numpy().flatten()
-
-
-class DeterministicPolicy(nn.Module):
-    def __init__(
-        self,
-        state_dim: int,
-        act_dim: int,
-        max_action: float,
-        hidden_dim: int = 256,
-        n_hidden: int = 2,
-        dropout: Optional[float] = None,
-    ):
-        super().__init__()
-        self.net = MLP(
-            [state_dim, *([hidden_dim] * n_hidden), act_dim],
-            output_activation_fn=nn.Tanh,
-            dropout=dropout,
-        )
-        self.max_action = max_action
-
-    def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        return self.net(obs)
-
-    @torch.no_grad()
-    def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        return (
-            torch.clamp(self(state) * self.max_action, -self.max_action, self.max_action)
-            .cpu()
-            .data.numpy()
-            .flatten()
-        )
-
-
-class TwinQ(nn.Module):
-    def __init__(
-        self, state_dim: int, action_dim: int, hidden_dim: int = 256, n_hidden: int = 2
-    ):
-        super().__init__()
-        dims = [state_dim + action_dim, *([hidden_dim] * n_hidden), 1]
-        self.q1 = MLP(dims, squeeze_output=True)
-        self.q2 = MLP(dims, squeeze_output=True)
-
-    def both(
-        self, state: torch.Tensor, action: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        sa = torch.cat([state, action], 1)
-        return self.q1(sa), self.q2(sa)
-
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        return torch.min(*self.both(state, action))
-
-
-class ValueFunction(nn.Module):
-    def __init__(self, state_dim: int, hidden_dim: int = 256, n_hidden: int = 2):
-        super().__init__()
-        dims = [state_dim, *([hidden_dim] * n_hidden), 1]
-        self.v = MLP(dims, squeeze_output=True)
-
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        return self.v(state)
-
-
-class ImplicitQLearning:
-    def __init__(
-        self,
-        max_action: float,
-        actor: nn.Module,
-        actor_optimizer: torch.optim.Optimizer,
-        q_network: nn.Module,
-        q_optimizer: torch.optim.Optimizer,
-        v_network: nn.Module,
-        v_optimizer: torch.optim.Optimizer,
-        iql_tau: float = 0.7,
-        beta: float = 3.0,
-        max_steps: int = 1000000,
-        discount: float = 0.99,
-        tau: float = 0.005,
-        device: str = "cpu",
-    ):
-        self.max_action = max_action
-        self.qf = q_network
-        self.q_target = copy.deepcopy(self.qf).requires_grad_(False).to(device)
-        self.vf = v_network
-        self.actor = actor
-        self.v_optimizer = v_optimizer
-        self.q_optimizer = q_optimizer
-        self.actor_optimizer = actor_optimizer
-        self.actor_lr_schedule = CosineAnnealingLR(self.actor_optimizer, max_steps)
-        self.iql_tau = iql_tau
-        self.beta = beta
+        self.action_dim = action_dim
         self.discount = discount
         self.tau = tau
-
-        self.total_it = 0
+        self.eta = eta  # q_learning weight
         self.device = device
+        self.max_q_backup = max_q_backup
 
-    def _update_v(self, observations, actions, log_dict) -> torch.Tensor:
-        # Update value function
-        with torch.no_grad():
-            target_q = self.q_target(observations, actions)
-
-        v = self.vf(observations)
-        adv = target_q - v
-        v_loss = asymmetric_l2_loss(adv, self.iql_tau)
-        log_dict["value_loss"] = v_loss.item()
-        self.v_optimizer.zero_grad()
-        v_loss.backward()
-        self.v_optimizer.step()
-        return adv
-
-    def _update_q(
-        self,
-        next_v: torch.Tensor,
-        observations: torch.Tensor,
-        actions: torch.Tensor,
-        rewards: torch.Tensor,
-        terminals: torch.Tensor,
-        log_dict: Dict,
-    ):
-        targets = rewards + (1.0 - terminals.float()) * self.discount * next_v.detach()
-        qs = self.qf.both(observations, actions)
-        q_loss = sum(F.mse_loss(q, targets) for q in qs) / len(qs)
-        log_dict["q_loss"] = q_loss.item()
-        self.q_optimizer.zero_grad()
-        q_loss.backward()
-        self.q_optimizer.step()
-
-        # Update target Q network
-        soft_update(self.q_target, self.qf, self.tau)
-
-    def _update_policy(
-        self,
-        adv: torch.Tensor,
-        observations: torch.Tensor,
-        actions: torch.Tensor,
-        log_dict: Dict,
-    ):
-        exp_adv = torch.exp(self.beta * adv.detach()).clamp(max=EXP_ADV_MAX)
-        policy_out = self.actor(observations)
-        if isinstance(policy_out, torch.distributions.Distribution):
-            bc_losses = -policy_out.log_prob(actions).sum(-1, keepdim=False)
-        elif torch.is_tensor(policy_out):
-            if policy_out.shape != actions.shape:
-                raise RuntimeError("Actions shape missmatch")
-            bc_losses = torch.sum((policy_out - actions) ** 2, dim=1)
-        else:
-            raise NotImplementedError
-        policy_loss = torch.mean(exp_adv * bc_losses)
-        log_dict["actor_loss"] = policy_loss.item()
-        self.actor_optimizer.zero_grad()
-        policy_loss.backward()
-        self.actor_optimizer.step()
-        self.actor_lr_schedule.step()
-
+    def step_ema(self):
+        if self.step < self.step_start_ema:
+            return
+        self.ema.update_model_average(self.ema_model, self.actor)
+    
     def train(self, batch: TensorBatch) -> Dict[str, float]:
-        self.total_it += 1
-        (
-            observations,
-            actions,
-            rewards,
-            next_observations,
-            dones,
-        ) = batch
-        log_dict = {}
+        batch_size = len(batch)
+        state, action, next_state, reward, not_done = batch
 
-        with torch.no_grad():
-            next_v = self.vf(next_observations)
-        # Update value function
-        adv = self._update_v(observations, actions, log_dict)
-        rewards = rewards.squeeze(dim=-1)
-        dones = dones.squeeze(dim=-1)
-        # Update Q function
-        self._update_q(next_v, observations, actions, rewards, dones, log_dict)
-        # Update actor
-        self._update_policy(adv, observations, actions, log_dict)
+        """ Q Training """
+        current_q1, current_q2 = self.critic(state, action)
 
-        return log_dict
+        if self.max_q_backup:
+            next_state_rpt = torch.repeat_interleave(next_state, repeats=10, dim=0)
+            next_action_rpt = self.ema_model(next_state_rpt)
+            target_q1, target_q2 = self.critic_target(next_state_rpt, next_action_rpt)
+            target_q1 = target_q1.view(batch_size, 10).max(dim=1, keepdim=True)[0]
+            target_q2 = target_q2.view(batch_size, 10).max(dim=1, keepdim=True)[0]
+            target_q = torch.min(target_q1, target_q2)
+        else:
+            next_action = self.ema_model(next_state)
+            target_q1, target_q2 = self.critic_target(next_state, next_action)
+            target_q = torch.min(target_q1, target_q2)
 
-    def state_dict(self) -> Dict[str, Any]:
-        return {
-            "qf": self.qf.state_dict(),
-            "q_optimizer": self.q_optimizer.state_dict(),
-            "vf": self.vf.state_dict(),
-            "v_optimizer": self.v_optimizer.state_dict(),
-            "actor": self.actor.state_dict(),
-            "actor_optimizer": self.actor_optimizer.state_dict(),
-            "actor_lr_schedule": self.actor_lr_schedule.state_dict(),
-            "total_it": self.total_it,
+        target_q = (reward + not_done * self.discount * target_q).detach()
+
+        critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        if self.grad_norm > 0:
+            critic_grad_norms = nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.grad_norm, norm_type=2)
+        self.critic_optimizer.step()
+
+        """ Policy Training """
+        bc_loss = self.actor.loss(action, state)
+        new_action = self.actor(state)
+
+        q1_new_action, q2_new_action = self.critic(state, new_action)
+        if np.random.uniform() > 0.5:
+            q_loss = - q1_new_action.mean() / q2_new_action.abs().mean().detach()
+        else:
+            q_loss = - q2_new_action.mean() / q1_new_action.abs().mean().detach()
+        actor_loss = bc_loss + self.eta * q_loss
+
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        if self.grad_norm > 0: 
+            actor_grad_norms = nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.grad_norm, norm_type=2)
+        self.actor_optimizer.step()
+
+
+        """ Step Target network """
+        if self.step % self.update_ema_every == 0:
+            self.step_ema()
+
+        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        self.step += 1
+
+        if self.lr_decay: 
+            self.actor_lr_scheduler.step()
+            self.critic_lr_scheduler.step()
+
+        """ Log """
+        logs = {
+            'bc_loss': actor_loss.item(), 
+            'ql_loss': bc_loss.item(), 
+            'actor_loss': q_loss.item(), 
+            'critic_loss': critic_loss.item(),
+            'target_q_mean': target_q.mean().item(),
         }
+        if self.grad_norm > 0:
+            logs['actor_grad_norm'] = actor_grad_norms.max().item()
+            logs['critic_grad_norm'] = critic_grad_norms.max().item()
 
-    def load_state_dict(self, state_dict: Dict[str, Any]):
-        self.qf.load_state_dict(state_dict["qf"])
-        self.q_optimizer.load_state_dict(state_dict["q_optimizer"])
-        self.q_target = copy.deepcopy(self.qf)
+        return logs
 
-        self.vf.load_state_dict(state_dict["vf"])
-        self.v_optimizer.load_state_dict(state_dict["v_optimizer"])
+    def sample_action(self, state):
+        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+        state_rpt = torch.repeat_interleave(state, repeats=50, dim=0)
+        with torch.no_grad():
+            action = self.actor.sample(state_rpt)
+            q_value = self.critic_target.q_min(state_rpt, action).flatten()
+            idx = torch.multinomial(F.softmax(q_value), 1)
+        return action[idx].cpu().data.numpy().flatten()
 
-        self.actor.load_state_dict(state_dict["actor"])
-        self.actor_optimizer.load_state_dict(state_dict["actor_optimizer"])
-        self.actor_lr_schedule.load_state_dict(state_dict["actor_lr_schedule"])
+    def save_model(self, dir, id=None):
+        if id is not None:
+            torch.save(self.actor.state_dict(), f'{dir}/actor_{id}.pth')
+            torch.save(self.critic.state_dict(), f'{dir}/critic_{id}.pth')
+        else:
+            torch.save(self.actor.state_dict(), f'{dir}/actor.pth')
+            torch.save(self.critic.state_dict(), f'{dir}/critic.pth')
 
-        self.total_it = state_dict["total_it"]
+    def load_model(self, dir, id=None):
+        if id is not None:
+            self.actor.load_state_dict(torch.load(f'{dir}/actor_{id}.pth'))
+            self.critic.load_state_dict(torch.load(f'{dir}/critic_{id}.pth'))
+        else:
+            self.actor.load_state_dict(torch.load(f'{dir}/actor.pth'))
+            self.critic.load_state_dict(torch.load(f'{dir}/critic.pth'))
 
 
 @pyrallis.wrap()
@@ -551,13 +478,15 @@ def train(config: TrainConfig):
         dataset["next_observations"], state_mean, state_std
     )
     env = wrap_env(env, state_mean=state_mean, state_std=state_std)
-    replay_buffer = ReplayBuffer(
-        state_dim,
-        action_dim,
-        config.buffer_size,
-        config.device,
-    )
-    replay_buffer.load_d4rl_dataset(dataset)
+
+    replay_buffer = Data_Sampler(dataset, config.device)
+    # replay_buffer = ReplayBuffer(
+    #     state_dim,
+    #     action_dim,
+    #     config.buffer_size,
+    #     config.device,
+    # )
+    # replay_buffer.load_d4rl_dataset(dataset)
 
     max_action = float(env.action_space.high[0])
 
@@ -571,49 +500,37 @@ def train(config: TrainConfig):
     seed = config.seed
     set_seed(seed, env)
 
-    q_network = TwinQ(state_dim, action_dim).to(config.device)
-    v_network = ValueFunction(state_dim).to(config.device)
-    actor = (
-        DeterministicPolicy(
-            state_dim, action_dim, max_action, dropout=config.actor_dropout
-        )
-        if config.iql_deterministic
-        else GaussianPolicy(
-            state_dim, action_dim, max_action, dropout=config.actor_dropout
-        )
-    ).to(config.device)
-    v_optimizer = torch.optim.Adam(v_network.parameters(), lr=config.vf_lr)
-    q_optimizer = torch.optim.Adam(q_network.parameters(), lr=config.qf_lr)
-    actor_optimizer = torch.optim.Adam(actor.parameters(), lr=config.actor_lr)
-
     kwargs = {
+        "state_dim": state_dim,
+        "action_dim": action_dim,
         "max_action": max_action,
-        "actor": actor,
-        "actor_optimizer": actor_optimizer,
-        "q_network": q_network,
-        "q_optimizer": q_optimizer,
-        "v_network": v_network,
-        "v_optimizer": v_optimizer,
+        "device": config.device,
         "discount": config.discount,
         "tau": config.tau,
-        "device": config.device,
-        # IQL
-        "beta": config.beta,
-        "iql_tau": config.iql_tau,
-        "max_steps": config.max_timesteps,
+        "max_q_backup": config.max_q_backup,
+        "eta": config.eta,
+        "beta_schedule": config.beta_schedule,
+        "n_timesteps": config.n_timesteps,
+        "ema_decay": config.ema_decay,
+        "step_start_ema": config.step_start_ema,
+        "update_ema_every": config.update_ema_every,
+        "lr": config.lr,
+        "lr_decay": config.lr_decay,
+        "lr_maxt": config.lr_maxt,
+        "grad_norm": ENV_PARAMS[config.env]["gn"],
     }
 
     print("---------------------------------------")
-    print(f"Training IQL, Env: {config.env}, Seed: {seed}")
+    print(f"Training DiffusionQL, Env: {config.env}, Seed: {seed}")
     print("---------------------------------------")
 
     # Initialize actor
-    trainer = ImplicitQLearning(**kwargs)
+    trainer = Diffusion_QL(**kwargs)
 
-    if config.load_model != "":
+    if config.load_model:
         policy_file = Path(config.load_model)
-        trainer.load_state_dict(torch.load(policy_file))
-        actor = trainer.actor
+        trainer.load_model(torch.load(policy_file))
+    actor = trainer.actor
 
     wandb_init(asdict(config))
 
@@ -622,7 +539,7 @@ def train(config: TrainConfig):
         batch = replay_buffer.sample(config.batch_size)
         batch = [b.to(config.device) for b in batch]
         log_dict = trainer.train(batch)
-        wandb.log(log_dict, step=trainer.total_it)
+        wandb.log(log_dict, step=trainer.step)
         if t % 5000 == 0:
             print(log_dict)
         # Evaluate episode
@@ -645,12 +562,9 @@ def train(config: TrainConfig):
             )
             print("---------------------------------------")
             if config.checkpoints_path is not None:
-                torch.save(
-                    trainer.state_dict(),
-                    os.path.join(config.checkpoints_path, f"checkpoint_{t}.pt"),
-                )
+                trainer.save_model(config.checkpoints_path, "checkpoint_{t}")
             wandb.log(
-                {"d4rl_normalized_score": normalized_eval_score}, step=trainer.total_it
+                {"d4rl_normalized_score": normalized_eval_score}, step=trainer.step
             )
 
 
