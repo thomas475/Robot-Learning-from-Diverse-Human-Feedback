@@ -52,7 +52,7 @@ def get_atari_dataset(env):
 
 def load_queries_with_indices(
         dataset, num_query, len_query, saved_indices, saved_labels=None,
-        scripted_teacher=False, comparison_equivalence_threshold=0, n_evaluation_categories=5, 
+        scripted_teacher=False, relabel_human_labels=False, comparison_equivalence_threshold=0, n_evaluation_categories=5, 
         modality="state", partition_idx=None, feedback_type="comparative"):    
     if modality == "state":
         observation_dim = (dataset["observations"].shape[-1], )
@@ -102,28 +102,33 @@ def load_queries_with_indices(
 
     if scripted_teacher:
         # scripted labels
-        if feedback_type in ['comparative']:
-            sum_r_t_1 = np.sum(batch['rewards'], axis=1)
-            sum_r_t_2 = np.sum(batch['rewards_2'], axis=1)
-            binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
-            rational_labels = np.zeros((len(binary_label), 2))
-            rational_labels[np.arange(binary_label.size), binary_label] = 1.0
-            if comparison_equivalence_threshold > 0.0:
-                margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= comparison_equivalence_threshold).reshape(-1)
-                rational_labels[margin_index] = 0.5
-            batch['labels'] = rational_labels
-        elif feedback_type in ['evaluative']:
-            sum_r_t = np.sum(batch['rewards'], axis=1)
-            min_sum_r_t, max_sum_r_t = sum_r_t.min(), sum_r_t.max()
-            sum_r_t = (sum_r_t - min_sum_r_t) / (max_sum_r_t - min_sum_r_t) # normalize summed rewards
-            evaluation_upper_bounds = np.array([category / (n_evaluation_categories) for category in range(1, n_evaluation_categories + 1)])
-            categories = np.clip(np.sum(sum_r_t[:, np.newaxis] >= evaluation_upper_bounds, axis=1), 0, n_evaluation_categories - 1) # category is highest index that is smaller than upper bound
-            rational_labels = np.zeros((len(sum_r_t), n_evaluation_categories))
-            for i in range(len(rational_labels)):
-                rational_labels[i][categories[i]] = 1
-            batch['labels'] = rational_labels
+        if relabel_human_labels:
+            # replace human labels with scripted ones
+            if feedback_type in ['comparative']:
+                sum_r_t_1 = np.sum(batch['rewards'], axis=1)
+                sum_r_t_2 = np.sum(batch['rewards_2'], axis=1)
+                binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
+                rational_labels = np.zeros((len(binary_label), 2))
+                rational_labels[np.arange(binary_label.size), binary_label] = 1.0
+                if comparison_equivalence_threshold > 0.0:
+                    margin_index = (np.abs(sum_r_t_1 - sum_r_t_2) <= comparison_equivalence_threshold).reshape(-1)
+                    rational_labels[margin_index] = 0.5
+                batch['labels'] = rational_labels
+            elif feedback_type in ['evaluative']:
+                sum_r_t = np.sum(batch['rewards'], axis=1)
+                min_sum_r_t, max_sum_r_t = sum_r_t.min(), sum_r_t.max()
+                sum_r_t = (sum_r_t - min_sum_r_t) / (max_sum_r_t - min_sum_r_t) # normalize summed rewards
+                evaluation_upper_bounds = np.array([category / (n_evaluation_categories) for category in range(1, n_evaluation_categories + 1)])
+                categories = np.clip(np.sum(sum_r_t[:, np.newaxis] >= evaluation_upper_bounds, axis=1), 0, n_evaluation_categories - 1) # category is highest index that is smaller than upper bound
+                rational_labels = np.zeros((len(sum_r_t), n_evaluation_categories))
+                for i in range(len(rational_labels)):
+                    rational_labels[i][categories[i]] = 1
+                batch['labels'] = rational_labels
+            else:
+                raise NotImplementedError('Scripted labels are not supported for "' + feedback_type + '" feedback.')
         else:
-            raise NotImplementedError('Scripted labels are not supported for "' + feedback_type + '" feedback.')
+            # use already generated fake labels
+            batch['labels'] = saved_labels
     else:
         # human labels   
         if feedback_type in ['comparative']:    
@@ -220,8 +225,8 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             
         pref_dataset = load_queries_with_indices(
             dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
-            comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, n_evaluation_categories=cfg.n_evaluation_categories, 
-            modality=cfg.modality, feedback_type=feedback_type)
+            relabel_human_labels=cfg.relabel_human_labels, comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
+            n_evaluation_categories=cfg.n_evaluation_categories, modality=cfg.modality, feedback_type=feedback_type)
         
         # if we use attribute feedback, learn attribute strength mapping first and afterwards generate pseudo labels
         if feedback_type in ['attribute']:
@@ -324,8 +329,8 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             # load data for the pseudo labels
             pref_dataset = load_queries_with_indices(
                 dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
-                comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, n_evaluation_categories=cfg.n_evaluation_categories, 
-                modality=cfg.modality, feedback_type='comparative')
+                relabel_human_labels=cfg.relabel_human_labels, comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
+                n_evaluation_categories=cfg.n_evaluation_categories, modality=cfg.modality, feedback_type='comparative')
         
         # if we use evaluative feedback, we first have to determine rating boundaries
         if feedback_type in ['evaluative']:
@@ -385,6 +390,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             dataset, num_query // N_DATASET_PARTITION, len_query,
             saved_indices=[human_indices_1, human_indices_2],
             saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+            relabel_human_labels=cfg.relabel_human_labels, 
             comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
             n_evaluation_categories=cfg.n_evaluation_categories, 
             modality=cfg.modality, partition_idx=p_idx, feedback_type=feedback_type)
@@ -398,82 +404,96 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
 
 
 def _load_data(cfg, feedback_type=None):
+    if not cfg.fake_label or cfg.relabel_human_labels:
+        data_dir = cfg.human_label_data_dir
+        suffix = "_human_labels"
+    else:
+        data_dir = cfg.fake_label_data_dir
+        suffix = "_fake_labels"
+
     if feedback_type:
-        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_human_labels", feedback_type)
+        data_dir = os.path.join(data_dir, f"{cfg.env}" + suffix, feedback_type)
     else:
-        data_dir = os.path.join(cfg.data_dir, f"{cfg.env}_human_labels")
+        data_dir = os.path.join(data_dir, f"{cfg.env}" + suffix)
+
     print(f"Load saved indices from {data_dir}.")
-    if os.path.exists(data_dir):
-        suffix = f"domain_{cfg.domain}_env_{cfg.env}"
-        matched_file = []
-        for file_name in os.listdir(data_dir):
-            print(suffix)
-            print(file_name)
-            if suffix in file_name:
-                matched_file.append(file_name)
-        
-        # unpickle transformed human labels
-        unpickled_data = {}
-        for file in matched_file:
-            file_name = os.path.splitext(os.path.basename(file))[0]
-            data_type = file_name.split('_domain_')[0]
-            identifier = file_name.split('_')[-1]
 
-            if identifier not in unpickled_data:
-                unpickled_data[identifier] = {}
-            with open(os.path.join(data_dir, file), "rb") as fp:  # Unpickling
-                unpickled_data[identifier][data_type] = pickle.load(fp)
-            
-            if 'query_length' not in unpickled_data[identifier]:
-                unpickled_data[identifier]['query_length'] = int(file_name.split('_len_')[1].split('_')[0])
-
-        # verify that all datasets have the same number of queries
-        query_length = next(iter(unpickled_data.values()))['query_length']
-        for identifier in unpickled_data:
-            assert unpickled_data[identifier]['query_length'] == query_length
-            unpickled_data[identifier].pop('query_length')
-
-        # concat data if multiple datasets are given
-        concatenated_unpickled_data = {}
-        for identifier in unpickled_data:
-            for data_type in unpickled_data[identifier]:
-                if data_type not in concatenated_unpickled_data:
-                    if isinstance(unpickled_data[identifier][data_type], dict):
-                        concatenated_unpickled_data[data_type] = {}
-                    else:
-                        initial_shape = (0,)
-                        if len(unpickled_data[identifier][data_type].shape) > 1:
-                            initial_shape += unpickled_data[identifier][data_type].shape[1:]
-                        concatenated_unpickled_data[data_type] = np.empty(initial_shape)
-                if isinstance(unpickled_data[identifier][data_type], dict):
-                    concatenated_unpickled_data[data_type] = {
-                        **concatenated_unpickled_data[data_type],
-                        **unpickled_data[identifier][data_type]
-                    }
-                else:
-                    concatenated_unpickled_data[data_type] = np.concatenate((
-                        concatenated_unpickled_data[data_type],
-                        unpickled_data[identifier][data_type]
-                    ))
-
-        # verify that the entries of all data types have the same length
-        assert all(len(value) == len(next(iter(concatenated_unpickled_data.values()))) for value in concatenated_unpickled_data.values())
-
-        # add query length and query number to the output
-        concatenated_unpickled_data['num_query'] = len(next(iter(concatenated_unpickled_data.values())))
-        concatenated_unpickled_data['len_query'] = query_length
-
-        out = ()
-        for data_type in [
-            'indices', 'indices_1', 'indices_2', 
-            'human_label',
-            'num_query', 'len_query'
-        ]:
-            if data_type in concatenated_unpickled_data:
-                out = out + (concatenated_unpickled_data[data_type],)
-        out = out[0] if len(out) == 1 else out
-    else:
+    if not os.path.exists(data_dir):
         raise ValueError(f"Label not found")
+    
+    suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
+    # suffix = f"domain_{cfg.domain}_env_{cfg.env}"
+    matched_file = []
+    for file_name in os.listdir(data_dir):
+        print(suffix)
+        print(file_name)
+        if suffix in file_name:
+            matched_file.append(file_name)
+
+    if len(matched_file) == 0:
+        raise ValueError(f"No matching labels found.")
+    
+    # unpickle transformed labels
+    unpickled_data = {}
+    for file in matched_file:
+        file_name = os.path.splitext(os.path.basename(file))[0]
+        data_type = file_name.split('_domain_')[0]
+        identifier = file_name.split('_')[-1]
+
+        if identifier not in unpickled_data:
+            unpickled_data[identifier] = {}
+        with open(os.path.join(data_dir, file), "rb") as fp:  # Unpickling
+            unpickled_data[identifier][data_type] = pickle.load(fp)
+        
+        if 'query_length' not in unpickled_data[identifier]:
+            unpickled_data[identifier]['query_length'] = int(file_name.split('_len_')[1].split('_')[0])
+
+    # verify that all datasets have the same number of queries
+    query_length = next(iter(unpickled_data.values()))['query_length']
+    for identifier in unpickled_data:
+        assert unpickled_data[identifier]['query_length'] == query_length
+        unpickled_data[identifier].pop('query_length')
+
+    # concat data if multiple datasets are given
+    concatenated_unpickled_data = {}
+    for identifier in unpickled_data:
+        for data_type in unpickled_data[identifier]:
+            if data_type not in concatenated_unpickled_data:
+                if isinstance(unpickled_data[identifier][data_type], dict):
+                    concatenated_unpickled_data[data_type] = {}
+                else:
+                    initial_shape = (0,)
+                    if len(unpickled_data[identifier][data_type].shape) > 1:
+                        initial_shape += unpickled_data[identifier][data_type].shape[1:]
+                    concatenated_unpickled_data[data_type] = np.empty(initial_shape)
+            if isinstance(unpickled_data[identifier][data_type], dict):
+                concatenated_unpickled_data[data_type] = {
+                    **concatenated_unpickled_data[data_type],
+                    **unpickled_data[identifier][data_type]
+                }
+            else:
+                concatenated_unpickled_data[data_type] = np.concatenate((
+                    concatenated_unpickled_data[data_type],
+                    unpickled_data[identifier][data_type]
+                ))
+
+    # verify that the entries of all data types have the same length
+    assert all(len(value) == len(next(iter(concatenated_unpickled_data.values()))) for value in concatenated_unpickled_data.values())
+
+    # add query length and query number to the output
+    concatenated_unpickled_data['num_query'] = len(next(iter(concatenated_unpickled_data.values())))
+    concatenated_unpickled_data['len_query'] = query_length
+
+    out = ()
+    for data_type in [
+        'indices', 'indices_1', 'indices_2', 
+        'human_label', 'fake_label',
+        'num_query', 'len_query'
+    ]:
+        if data_type in concatenated_unpickled_data:
+            out = out + (concatenated_unpickled_data[data_type],)
+    out = out[0] if len(out) == 1 else out
+
     return out
 
 

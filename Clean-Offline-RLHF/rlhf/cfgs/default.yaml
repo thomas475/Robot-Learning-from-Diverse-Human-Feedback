@@ -10,24 +10,26 @@ stack: false  # stack frame in pixel benchmark, only atari
 
 # feedback type
 feedback_type: [
-  'comparative', 
-  'attribute',
+  # 'comparative', 
+  # 'attribute',
   'evaluative',
-  'keypoint'
+  # 'keypoint'
 ]
 
 # scripted teacher
-fake_label: false # use scripted teacher to label queries instead of human feedback
+fake_label: true # use scripted teacher to label queries instead of human feedback
+relabel_human_labels: false # if true load human label data and adjust labels with scripted teacher, if false load generated fake label data
 n_evaluation_categories: 5
 comparison_equivalency_threshold: 0
+fake_label_data_dir: "../generated_fake_labels/"
 
 # learning
 ensemble_size: 1
 batch_size: 64
 n_epochs: 100
-# num_query: 5 # original 2000
-# len_query: 200
-data_dir: "../crowdsource_human_labels/"
+num_query: 200 # original 2000len_query
+len_query: 100
+human_label_data_dir: "../crowdsource_human_labels/"
 
 # misc
 seed: 888
