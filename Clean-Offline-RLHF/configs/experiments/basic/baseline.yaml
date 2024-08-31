@@ -1,2 +1,2 @@
 reward_model_paths: []
-keypoint_predictor_path: None
+keypoint_predictor_path: ""

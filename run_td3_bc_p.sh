@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --ntasks=1
 #SBATCH --time=02:00:00
-#SBATCH --cpus-per-task=8
 #SBATCH --job-name=td3_bc_p
 
 module load devel/miniconda

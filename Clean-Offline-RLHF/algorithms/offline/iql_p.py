@@ -71,7 +71,7 @@ class TrainConfig:
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         # self.name = f"{self.name}-{self.env}"
         model_paths = self.reward_model_paths.copy()
-        if self.keypoint_predictor_path:
+        if self.keypoint_predictor_path != "":
             model_paths.append(self.keypoint_predictor_path)
         indicators = [self.env, self.group]
         for model_path in model_paths:
@@ -555,7 +555,7 @@ def train(config: TrainConfig):
 
     # extend observations with keypoint predictor
     keypoint_predictor = None
-    if config.keypoint_predictor_path:
+    if config.keypoint_predictor_path != "":
         keypoint_predictor = load_keypoint_predictor(config.env, state_dim, action_dim, config.keypoint_predictor_path, config.device)
         dataset = extend_dataset_observations(dataset, keypoint_predictor, device=config.device)
         state_dim = state_dim * 2
