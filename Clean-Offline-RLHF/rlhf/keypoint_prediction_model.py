@@ -134,7 +134,7 @@ class KeypointPredictorModel(object):
         labels = torch.from_numpy(np.array(labels)).to(self.device) # batch_size * len_query * obs_dim
         
         # get keypoint predictions
-        g = self.r_hat_member(obs, member)  # batch_size * len_query * obs_dim
+        g = self.predict_by_member(obs, member)  # batch_size * len_query * obs_dim
 
         # compute loss
         curr_loss = self.regression_loss(g, labels)
@@ -144,9 +144,16 @@ class KeypointPredictorModel(object):
 
         return curr_loss, mse
 
-    def r_hat_member(self, x, member):
+    def predict_by_member(self, x, member):
         return self.ensemble[member](torch.from_numpy(x).float().to(self.device))
 
     def regression_loss(self, input, target):
         trajectory_loss = torch.linalg.norm((input - target), axis=2).sum(axis=1)
         return trajectory_loss.sum() / input.shape[0]
+    
+    def predict(self, x):
+        keypoint_predictions_by_member = []
+        for member in range(self.ensemble_size):
+            keypoint_predictions_by_member.append(self.predict_by_member(x, member=member).detach().cpu().numpy())
+        keypoint_predictions_by_member = np.array(keypoint_predictions_by_member)
+        return np.mean(keypoint_predictions_by_member, axis=0)

@@ -80,7 +80,7 @@ def reward_from_preference(
     reward_model,
     batch_size: int = 256,
     reward_model_type: str = "transformer",
-    device="cuda"
+    device="cpu"
 ):
     data_size = dataset["rewards"].shape[0]
     interval = int(data_size / batch_size) + 1
@@ -224,7 +224,7 @@ def replace_dataset_reward(
     
     return dataset
 
-def load_reward_models(env, obs_dim, act_dim, reward_model_paths, device):
+def load_reward_models(env_name, obs_dim, act_dim, reward_model_paths, device):
     from rlhf.reward_model import RewardModel, TransformerRewardModel
     
     reward_models, reward_model_types = [], []
@@ -234,10 +234,10 @@ def load_reward_models(env, obs_dim, act_dim, reward_model_paths, device):
             print('The reward model stored in "' + reward_model_path + '" has an unsupported model type: ' + reward_model_type)
         else:
             if reward_model_type == 'mlp':
-                reward_model = RewardModel(env, obs_dim, act_dim, ensemble_size=3, lr=3e-4,
+                reward_model = RewardModel(env_name, obs_dim, act_dim, ensemble_size=3, lr=3e-4,
                                         activation="tanh", logger=None, device=device)
             elif 'transformer' in reward_model_type:
-                reward_model = TransformerRewardModel(env, obs_dim, act_dim, structure_type="transformer1",
+                reward_model = TransformerRewardModel(env_name, obs_dim, act_dim, structure_type="transformer1",
                                                     ensemble_size=3, lr=0.0003, activation="tanh",
                                                     d_model=256, nhead=4, num_layers=1, max_seq_len=100,
                                                     logger=None, device=device)
@@ -245,6 +245,49 @@ def load_reward_models(env, obs_dim, act_dim, reward_model_paths, device):
             reward_models.append(reward_model)
             reward_model_types.append(reward_model_type)
     return reward_models, reward_model_types
+
+def load_keypoint_predictor(env_name, obs_dim, act_dim, keypoint_predictor_path, device):
+    from rlhf.keypoint_prediction_model import KeypointPredictorModel
+    keypoint_predictor = KeypointPredictorModel(env_name, obs_dim, act_dim, device=device)
+    keypoint_predictor.load_model(keypoint_predictor_path)
+    return keypoint_predictor
+
+@torch.no_grad()
+def extend_dataset_observations(
+    dataset: D4RLDataset,
+    keypoint_predictor=None,
+    batch_size: int = 256,
+    device="cpu"
+):
+    """
+    Append the output of the keypoint predictor to the original states.
+    """
+    if not keypoint_predictor:
+        return dataset
+
+    data_size = dataset["observations"].shape[0]
+    interval = int(data_size / batch_size) + 1
+    new_obs = np.zeros((data_size, dataset["observations"].shape[-1] * 2))
+    new_next_obs = np.zeros((data_size, dataset["next_observations"].shape[-1] * 2))
+    
+    for i in trange(interval):
+        start_pt = i * batch_size
+        end_pt = (i + 1) * batch_size
+
+        observations = dataset["observations"][start_pt:end_pt]
+        keypoints = keypoint_predictor.predict(observations)
+        new_observations = np.concatenate((observations, keypoints), axis=-1)
+        new_obs[start_pt:end_pt] = new_observations
+
+        next_observations = dataset["next_observations"][start_pt:end_pt]
+        next_keypoints = keypoint_predictor.predict(next_observations)
+        new_next_observations = np.concatenate((next_observations, next_keypoints), axis=-1)
+        new_next_obs[start_pt:end_pt] = new_next_observations
+
+    dataset["observations"] = new_obs.copy()
+    dataset["next_observations"] = new_next_obs.copy()
+    
+    return dataset
 
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):

@@ -22,8 +22,10 @@ APP_DIR= os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 sys.path.append(APP_DIR)
 sys.path.append(APP_DIR+'/rlhf')
 
-# reward model
-from rlhf.utils import replace_dataset_reward, load_reward_models
+# feedback models
+from rlhf.keypoint_prediction_model import KeypointPredictorModel
+from rlhf.utils import replace_dataset_reward, load_reward_models, load_keypoint_predictor, extend_dataset_observations
+
 
 @dataclass
 class TrainConfig:
@@ -31,9 +33,9 @@ class TrainConfig:
     device: str = "cpu"
     env: str = "kitchen-mixed-v0"  # OpenAI gym environment name
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
-    eval_freq: int = int(10)  # How often (time steps) we evaluate - default int(5e3)
-    n_episodes: int = 1  # How many episodes run during evaluation - default 10
-    max_timesteps: int = int(100)  # Max time steps to run environment - default int(1e6)
+    eval_freq: int = int(5e3)  # How often (time steps) we evaluate - default int(5e3)
+    n_episodes: int = 10 # How many episodes run during evaluation - default 10
+    max_timesteps: int = int(1e6)  # Max time steps to run environment - default int(1e6)
     checkpoints_path: Optional[str] = None  # Save path
     load_model: str = ""  # Model load file name, "" doesn't load
     # TD3
@@ -92,10 +94,14 @@ def normalize_states(states: np.ndarray, mean: np.ndarray, std: np.ndarray):
 
 def wrap_env(
     env: gym.Env,
+    keypoint_predictor: KeypointPredictorModel = None,
     state_mean: Union[np.ndarray, float] = 0.0,
     state_std: Union[np.ndarray, float] = 1.0,
     reward_scale: float = 1.0,
 ) -> gym.Env:
+    def append_keypoint_prediction(state):
+        return np.concatenate((state, keypoint_predictor.predict(state)), axis=-1)
+
     # PEP 8: E731 do not assign a lambda expression, use a def
     def normalize_state(state):
         return (
@@ -106,6 +112,8 @@ def wrap_env(
         # Please be careful, here reward is multiplied by scale!
         return reward_scale * reward
 
+    if keypoint_predictor:
+        env = gym.wrappers.TransformObservation(env, append_keypoint_prediction)
     env = gym.wrappers.TransformObservation(env, normalize_state)
     if reward_scale != 1.0:
         env = gym.wrappers.TransformReward(env, scale_reward)
@@ -416,11 +424,18 @@ def train(config: TrainConfig):
 
     dataset = d4rl.qlearning_dataset(env)
 
+    # update reward with trained reward models
     reward_models, reward_model_types = load_reward_models(config.env, state_dim, action_dim, config.reward_model_paths, config.device)
     dataset = replace_dataset_reward(dataset, reward_models, reward_model_types, device=config.device)
-
     if config.normalize_reward:
         modify_reward(dataset, config.env)
+
+    # extend observations with keypoint predictor
+    keypoint_predictor = None
+    if hasattr(config, "keypoint_predictor_path"):
+        keypoint_predictor = load_keypoint_predictor(config.env, state_dim, action_dim, config.keypoint_predictor_path, config.device)
+        dataset = extend_dataset_observations(dataset, keypoint_predictor, device=config.device)
+        state_dim = state_dim * 2
 
     if config.normalize:
         state_mean, state_std = compute_mean_std(dataset["observations"], eps=1e-3)
@@ -433,7 +448,8 @@ def train(config: TrainConfig):
     dataset["next_observations"] = normalize_states(
         dataset["next_observations"], state_mean, state_std
     )
-    env = wrap_env(env, state_mean=state_mean, state_std=state_std)
+    env = wrap_env(env, keypoint_predictor=keypoint_predictor, state_mean=state_mean, state_std=state_std)
+
     replay_buffer = ReplayBuffer(
         state_dim,
         action_dim,
