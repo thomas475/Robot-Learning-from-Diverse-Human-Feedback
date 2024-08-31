@@ -481,7 +481,7 @@ export default {
                 ],
                 "query_num": {
                     "type": "integer",
-                    "default": 20,
+                    "default": 100,
                     "minimum": 1,
                     "maximum": 500
                 },
