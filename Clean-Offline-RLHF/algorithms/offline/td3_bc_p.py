@@ -55,17 +55,14 @@ class TrainConfig:
     project: str = "Uni-RLHF"
     group: str = "TD3BC"
     name: str = "exp"
-    reward_model_paths: list = field(default_factory=lambda: [
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_25_len_200_seed_888/models/scripted_comparative_reward_mlp.pt",
-        "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_20_len_100_seed_888/models/scripted_evaluative_reward_mlp.pt",
-    ])
-    keypoint_predictor_path: str = "../../rlhf/model_logs/kitchen-mixed-v0/mlp/epoch_100_query_2_len_50_seed_888/models/human_keypoint_predictor_mlp.pt"
+    reward_model_paths: list = field(default_factory=lambda: [])
+    keypoint_predictor_path: str = None
 
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         # self.name = f"{self.name}-{self.env}"
         model_paths = self.reward_model_paths.copy()
-        if hasattr(self, 'keypoint_predictor_path'):
+        if self.keypoint_predictor_path:
             model_paths.append(self.keypoint_predictor_path)
         indicators = [self.env, self.group]
         for model_path in model_paths:
@@ -432,7 +429,7 @@ def train(config: TrainConfig):
 
     # extend observations with keypoint predictor
     keypoint_predictor = None
-    if hasattr(config, "keypoint_predictor_path"):
+    if config.keypoint_predictor_path:
         keypoint_predictor = load_keypoint_predictor(config.env, state_dim, action_dim, config.keypoint_predictor_path, config.device)
         dataset = extend_dataset_observations(dataset, keypoint_predictor, device=config.device)
         state_dim = state_dim * 2
