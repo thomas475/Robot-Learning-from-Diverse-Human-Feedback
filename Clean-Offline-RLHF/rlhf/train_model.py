@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
 
-__CONFIG__, __LOGS__ = 'cfgs', 'model_logs'
+__LOGS__ = 'model_logs'
 
 @dataclass
 class TrainConfig:
@@ -70,11 +70,11 @@ class TrainConfig:
     max_seq_len: int = 200
 
     # attribute strength mapping
-    attr_map_ensemble_size: int = 1 # original 3
-    attr_map_n_gradient_steps: int = 2 # original 3000
-    attr_map_batch_size: int = 4 # original 256
+    attr_map_ensemble_size: int = 3 # original 3
+    attr_map_n_gradient_steps: int = 3000 # original 3000
+    attr_map_batch_size: int = 256 # original 256
     attr_map_test_size: float = 0.2
-    attr_map_test_interval: int = 1 # original 100
+    attr_map_test_interval: int = 20 # original 100
     attr_map_target: list = field(default_factory=lambda: [1, 1]) # the desired target attributes
     attr_map_load: bool = True # load the attribute mapping if it already exists
     attr_map_n_pseudo_labels: int = 10 # number of generated pseudo labels

@@ -115,10 +115,10 @@ python3 transform_raw_labels.py --data_dir [dir_path]
 
 ### Pre-train Auxiliary Models
 
-You can configure the training of the auxiliary models (reward model, attribute mapping model, keypoint prediction model) by adjusting the configuration file `rlhf/cfgs/default.yaml`. To then train these models you run the following command:
+You can configure the training of the auxiliary models (reward model, attribute mapping model, keypoint prediction model) by creating a custom `config.yaml` file (available parameters can be seen in `TrainConfig` object in `rlhf/train_model.py`). To then train these models you run the following command:
 ```bash
 cd rlhf
-python3 train_model.py 
+python3 train_model.py --config config.yaml
 ```
 
 ### Train Offline RL with Pre-trained Auxiliary Models 
