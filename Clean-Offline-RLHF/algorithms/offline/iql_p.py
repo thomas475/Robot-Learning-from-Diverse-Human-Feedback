@@ -39,9 +39,9 @@ LOG_STD_MAX = 2.0
 class TrainConfig:
     # Experiment
     device: str = "cpu"
-    env: str = "kitchen-mixed-v0"  # OpenAI gym environment name
+    env: str = "kitchen-complete-v0"  # OpenAI gym environment name
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
-    eval_freq: int = int(5e3)  # How often (time steps) we evaluate - default int(5e3)
+    eval_freq: int = int(1e3)  # How often (time steps) we evaluate - default int(5e3)
     n_episodes: int = 10 # How many episodes run during evaluation - default 10
     max_timesteps: int = int(1e6)  # Max time steps to run environment - default int(1e6)
     checkpoints_path: Optional[str] = None  # Save path

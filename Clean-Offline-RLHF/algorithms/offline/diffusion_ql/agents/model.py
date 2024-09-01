@@ -42,7 +42,7 @@ class MLP(nn.Module):
     def forward(self, x, time, state):
 
         t = self.time_mlp(time)
-        x = torch.cat([x, t, state], dim=1)
+        x = torch.cat([x.to(self.device), t.to(self.device), state.to(self.device)], dim=1)
         x = self.mid_layer(x)
 
         return self.final_layer(x)
