@@ -451,12 +451,6 @@ class TransformerRewardModel(RewardModel):
             obs = batch['observations']  # batch_size * len_query * obs_dim
             act = batch['actions']  # batch_size * len_query * action_dim
             labels = batch['labels']  # batch_size * (one-hot, for rating)
-            context = batch['context']
-            boundaries = context['boundaries']
-            normalizer = utils.MinMaxScaler(
-                context['min_unnormalized_reward_sum'], 
-                context['max_unnormalized_reward_sum']
-            )
 
             # to torch
             obs = utils.to_torch(obs).to(self.device)
@@ -465,19 +459,29 @@ class TransformerRewardModel(RewardModel):
             # get logits
             r_hat = self.ensemble[member](obs, act)  # batch_size * len_query * 1
             r_hat = r_hat.sum(axis=1)  # batch_size * 1
-            r_tilde = normalizer.transform(r_hat)
+            r_tilde  = ((r_hat) - (torch.min(r_hat))) / ((torch.max(r_hat)) - (torch.min(r_hat)))
+            r_tilde = torch.unsqueeze(r_tilde, -1)
 
             # get labels
             # labels = torch.from_numpy(labels).long().to(self.device)  # TODO
             labels = torch.from_numpy(labels).to(self.device)
 
+            # get boundaries
+            sorted_r_tilde = torch.sort(r_tilde)[0]
+            category_counts = torch.sum(labels, dim=0).numpy()
+            n_rating_categories = len(category_counts)
+            boundaries = np.zeros(n_rating_categories + 1)
+            boundaries[0] = sorted_r_tilde[0]
+            boundaries[n_rating_categories] = sorted_r_tilde[-1]
+            for i in range(1, n_rating_categories):
+                cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
+                boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
+            
             # compute loss
             curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)
 
             # compute acc
-            prediction = np.clip(((
-                r_tilde.unsqueeze(1) < torch.tensor(boundaries).unsqueeze(0)
-            ) == 1).int().argmax(dim=1).numpy(), 0, len(labels) - 1)
+            prediction = torch.clip(torch.sum(r_tilde > torch.tensor(boundaries), dim=1) - 1, 0, n_rating_categories - 1).detach().numpy()
             target = np.argmax(labels.numpy(), axis=1)
             correct = sum(prediction == target) / len(labels)
 

@@ -1,0 +1,13 @@
+env: "kitchen-mixed-v0"
+seed: 0
+feedback_type: [
+    "comparative",
+    # "attribute",
+    # "evaluative",
+    # "keypoint",
+    # "visual"
+]
+num_query: 200
+len_query: 100
+fake_label: true
+relabel_human_labels: true 
