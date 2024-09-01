@@ -8,6 +8,8 @@ from reward_model import RewardModel, CNNRewardModel, TransformerRewardModel
 # from utils import AttrFunc, GaussianNormalizer, get_episode_boundaries, MinMaxScaler, generate_trajectory_pairs
 from utils import *
 from keypoint_prediction_model import KeypointPredictorModel
+from dataclasses import asdict, dataclass, field
+import pyrallis
 from tqdm import tqdm
 import logger
 import random
@@ -22,6 +24,71 @@ warnings.filterwarnings('ignore')
 
 __CONFIG__, __LOGS__ = 'cfgs', 'model_logs'
 
+@dataclass
+class TrainConfig:
+    domain: str = "d4rl"
+    env: str = "kitchen-complete-v0"
+    modality: str = "state"  # state/pixel
+    structure: str = "mlp" # mlp/transformer1/transformer2/transformer3
+    clip_action: float = 0.999 # only d4rl
+    stack: bool = False # stack frame in pixel benchmark, only atari
+    feedback_type: list = field(default_factory=lambda: [
+        "comparative", 
+        # "attribute",
+        # "evaluative",
+        # "keypoint"
+    ])
+
+    # scripted teacher
+    fake_label: bool = False # use scripted teacher to label queries instead of human feedback
+    relabel_human_labels: bool = False # if true load human label data and adjust labels with scripted teacher, if false load generated fake label data
+    n_evaluation_categories: int = 5
+    comparison_equivalency_threshold: int = 0
+    fake_label_data_dir: str = "../generated_fake_labels/"
+
+    # learning
+    ensemble_size: int = 1
+    batch_size: int = 64
+    n_epochs: int = 1000
+    num_query: int = 200 # original 2000
+    len_query: int = 100
+    human_label_data_dir: str = "../crowdsource_human_labels/"
+
+    # misc
+    seed: int = 0
+    save_model: bool = True
+    use_wandb: bool = True
+    wandb_project: str = "Uni-RLHF"
+    wandb_group: str = "AuxiliaryModel"
+    wandb_name: str = ""
+    device: str = "cpu"
+
+    # transformer structure
+    d_model: int = 256
+    nhead: int = 4
+    num_layers: int = 1
+    max_seq_len: int = 200
+
+    # attribute strength mapping
+    attr_map_ensemble_size: int = 1 # original 3
+    attr_map_n_gradient_steps: int = 2 # original 3000
+    attr_map_batch_size: int = 4 # original 256
+    attr_map_test_size: float = 0.2
+    attr_map_test_interval: int = 1 # original 100
+    attr_map_target: list = field(default_factory=lambda: [1, 1]) # the desired target attributes
+    attr_map_load: bool = True # load the attribute mapping if it already exists
+    attr_map_n_pseudo_labels: int = 10 # number of generated pseudo labels
+    attr_map_threshold: float = 0.1 # threshold to determine when trajectories have equal preference
+    def __post_init__(self):
+        if len(self.feedback_type) >= 1:
+            self.wandb_name = "_".join([
+                self.env, 
+                self.wandb_group, 
+                "_".join([feedback_type.capitalize() for feedback_type in self.feedback_type]), 
+                str(self.seed)
+            ])
+        else:
+            self.wandb_name = "_".join([self.env, self.wandb_group, str(self.seed)])
 
 def set_seed(seed):
     random.seed(seed)
@@ -157,8 +224,8 @@ def load_queries_with_indices(
 
     return batch
 
-
-def train(cfg):
+@pyrallis.wrap()
+def train(cfg: TrainConfig):
     # set seed
     set_seed(cfg.seed)
 
@@ -184,7 +251,7 @@ def train(cfg):
         raise ValueError("Domain not found!")
     print(f"Load env {cfg.env} successfully!")
     
-    if 'feedback_type' in cfg and cfg.feedback_type:
+    if len(cfg.feedback_type) >= 1:
         for feedback_type in cfg.feedback_type:
             _train(action_dim, cfg, dataset, _load_data(cfg, feedback_type), observation_dim, feedback_type)
     else:
@@ -205,7 +272,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
     
     # initialize logger
     log_dir = os.path.join(
-        Path().cwd(), __LOGS__, cfg.env, cfg.exp_name, 
+        Path().cwd(), __LOGS__, cfg.env, 
         'epoch_' + str(cfg.n_epochs) + '_query_' + str(num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
     )
     model_dir = os.path.join(log_dir, 'models')
@@ -423,14 +490,11 @@ def _load_data(cfg, feedback_type=None):
         data_dir = os.path.join(data_dir, f"{cfg.env}" + suffix)
 
     print(f"Load saved indices from {data_dir}.")
-
+    
     if not os.path.exists(data_dir):
         raise ValueError(f"Label not found")
     
-    if "num_query" in cfg and "len_query" in cfg:
-        suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
-    else:
-        suffix = f"domain_{cfg.domain}_env_{cfg.env}"
+    suffix = f"domain_{cfg.domain}_env_{cfg.env}_num_{cfg.num_query}_len_{cfg.len_query}"
     matched_file = []
     for file_name in os.listdir(data_dir):
         print(suffix)
@@ -506,4 +570,4 @@ def _load_data(cfg, feedback_type=None):
 
 
 if __name__ == '__main__':
-    train(parse_cfg(Path().cwd() / __CONFIG__))
+    train()
