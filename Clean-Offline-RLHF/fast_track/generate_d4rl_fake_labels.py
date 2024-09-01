@@ -421,7 +421,7 @@ class DatasetSampler:
         return start_indices_1, start_indices_2, end_indices_1, end_indices_2
     
     
-def get_fake_labels_with_indices(dataset, num_query, len_query, saved_indices, equivalence_threshold=0, n_eval_categories=5, feedback_type='comparative'):
+def get_fake_labels_with_indices(env_name, dataset, num_query, len_query, saved_indices, equivalence_threshold=0, n_eval_categories=5, feedback_type='comparative'):
     if feedback_type not in ['comparative', 'evaluative']:
         raise NotImplementedError('Scripted labels are not supported for "' + feedback_type + '" feedback.')
 
@@ -442,7 +442,12 @@ def get_fake_labels_with_indices(dataset, num_query, len_query, saved_indices, e
                 total_reward_seq_2[query_count] = reward_seq
                 
             temp_count += 1
-    
+
+    # reset trajectory rewards
+    if "kitchen" in env_name:
+        total_reward_seq_1 = total_reward_seq_1 - total_reward_seq_1[:,0][:,np.newaxis]
+        total_reward_seq_2 = total_reward_seq_2 - total_reward_seq_2[:,0][:,np.newaxis]
+
     seg_reward_1 = total_reward_seq_1.copy()
     seg_reward_2 = total_reward_seq_2.copy()
     
@@ -506,6 +511,7 @@ def main(args):
     # customize equivalence threshold
     equivalence_threshold_dict = {"mujoco": 10, "antmaze": 0, "adroit": 0, "d4rl": 0}
     batch = get_fake_labels_with_indices(
+        args.env_name,
         dataset,
         num_query=args.num_query,
         len_query=args.len_query,

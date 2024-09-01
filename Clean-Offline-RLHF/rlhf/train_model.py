@@ -118,7 +118,7 @@ def get_atari_dataset(env):
 
 
 def load_queries_with_indices(
-        dataset, num_query, len_query, saved_indices, saved_labels=None,
+        env, dataset, num_query, len_query, saved_indices, saved_labels=None,
         scripted_teacher=False, relabel_human_labels=False, comparison_equivalence_threshold=0, n_evaluation_categories=5, 
         modality="state", partition_idx=None, feedback_type="comparative"):    
     if modality == "state":
@@ -172,8 +172,14 @@ def load_queries_with_indices(
         if relabel_human_labels:
             # replace human labels with scripted ones
             if feedback_type in ['comparative']:
-                sum_r_t_1 = np.sum(batch['rewards'], axis=1)
-                sum_r_t_2 = np.sum(batch['rewards_2'], axis=1)
+                r_t_1 = batch['rewards']
+                r_t_2 = batch['rewards_2']
+                # reset trajectory rewards
+                if "kitchen" in env:
+                    r_t_1 = r_t_1 - r_t_1[:,0][:,np.newaxis]
+                    r_t_2 = r_t_2 - r_t_2[:,0][:,np.newaxis]
+                sum_r_t_1 = np.sum(r_t_1, axis=1)
+                sum_r_t_2 = np.sum(r_t_2, axis=1)
                 binary_label = 1 * (sum_r_t_1 < sum_r_t_2)
                 rational_labels = np.zeros((len(binary_label), 2))
                 rational_labels[np.arange(binary_label.size), binary_label] = 1.0
@@ -182,7 +188,11 @@ def load_queries_with_indices(
                     rational_labels[margin_index] = 0.5
                 batch['labels'] = rational_labels
             elif feedback_type in ['evaluative']:
-                sum_r_t = np.sum(batch['rewards'], axis=1)
+                r_t = batch['rewards']
+                # reset trajectory rewards
+                if "kitchen" in env:
+                    r_t = r_t - r_t[:,0][:,np.newaxis]
+                sum_r_t = np.sum(r_t, axis=1)
                 min_sum_r_t, max_sum_r_t = sum_r_t.min(), sum_r_t.max()
                 sum_r_t = (sum_r_t - min_sum_r_t) / (max_sum_r_t - min_sum_r_t) # normalize summed rewards
                 evaluation_upper_bounds = np.array([category / (n_evaluation_categories) for category in range(1, n_evaluation_categories + 1)])
@@ -297,7 +307,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
             saved_indices = [np.array(list(human_labels.keys()))]
             
         pref_dataset = load_queries_with_indices(
-            dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+            cfg.env, dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
             relabel_human_labels=cfg.relabel_human_labels, comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
             n_evaluation_categories=cfg.n_evaluation_categories, modality=cfg.modality, feedback_type=feedback_type)
         
@@ -401,7 +411,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
 
             # load data for the pseudo labels
             pref_dataset = load_queries_with_indices(
-                dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
+                cfg.env, dataset, num_query, len_query, saved_indices, saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
                 relabel_human_labels=cfg.relabel_human_labels, comparison_equivalence_threshold=cfg.comparison_equivalency_threshold, 
                 n_evaluation_categories=cfg.n_evaluation_categories, modality=cfg.modality, feedback_type='comparative')
         
@@ -460,7 +470,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
                                       activation=None, logger=L)
         N_DATASET_PARTITION = 5
         pref_dataset = [load_queries_with_indices(
-            dataset, num_query // N_DATASET_PARTITION, len_query,
+            cfg.env, dataset, num_query // N_DATASET_PARTITION, len_query,
             saved_indices=[human_indices_1, human_indices_2],
             saved_labels=human_labels, scripted_teacher=cfg.fake_label, 
             relabel_human_labels=cfg.relabel_human_labels, 

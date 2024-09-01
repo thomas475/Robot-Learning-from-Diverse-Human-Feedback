@@ -11,3 +11,4 @@ num_query: 200
 len_query: 100
 fake_label: false
 relabel_human_labels: false 
+use_wandb: false
