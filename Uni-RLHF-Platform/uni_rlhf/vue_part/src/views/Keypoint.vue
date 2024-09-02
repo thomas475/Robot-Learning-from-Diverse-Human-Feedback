@@ -272,6 +272,7 @@ export default {
                     this.$store.commit('Query_id', this.query_id);
                     this.$store.commit('Feedback_type', this.feedback_type);
                     this.$store.commit('Label', this.radioGroup);
+                    this.frameIndex_list = [];
                     this.playNextVideo();
                 })
                 .catch((error) => {
