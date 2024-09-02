@@ -7,7 +7,7 @@ feedback_type: [
     "keypoint",
     # "visual"
 ]
-num_query: 100
+num_query: 25
 len_query: 100
 fake_label: false
 relabel_human_labels: false 

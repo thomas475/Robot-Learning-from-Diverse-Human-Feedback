@@ -149,15 +149,14 @@ def main(args):
         # human_label = np.interp(human_label, (human_label.min(), human_label.max()), (0, 1))
         
         # turn the label into an indicator vector
-        indicator_matrix = np.zeros((len(human_label), (human_label.max() - human_label.min() + 1)))
-        normalized_label = human_label - human_label.min()
-        for i in range(len(normalized_label)):
-            indicator_matrix[i][normalized_label[i]] = 1
+        indicator_matrix = np.zeros((len(human_label), (human_label.max() + 1)))
+        for i in range(len(human_label)):
+            indicator_matrix[i][human_label[i]] = 1
         human_label = indicator_matrix
 
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
-        for rating, frequency in zip(ratings, frequencies):
-            print("rating " + str(rating) + ":", frequency)
+        for rating, frequency in enumerate(np.sum(human_label, axis=0)):
+            print("rating " + str(rating) + ":", int(frequency))
     elif feedback_type == 'keypoint':
         print(f"domain_{domain}_env_{env_name}_feedback_{feedback_type}:")
         print("keypoints:", sum(len(value) for value in human_label.values()))
