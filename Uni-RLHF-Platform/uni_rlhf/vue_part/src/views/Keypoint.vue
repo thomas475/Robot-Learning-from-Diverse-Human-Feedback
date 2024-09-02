@@ -272,7 +272,6 @@ export default {
                     this.$store.commit('Query_id', this.query_id);
                     this.$store.commit('Feedback_type', this.feedback_type);
                     this.$store.commit('Label', this.radioGroup);
-                    this.frameIndex_list = [];
                     this.playNextVideo();
                 })
                 .catch((error) => {
@@ -293,6 +292,9 @@ export default {
                 });
         },
         playNextVideo() {
+            // reset keypoint indeces
+            this.frameIndex_list = [];
+
             // 获取下一个视频的索引
             this.currentIndex = this.url_list.indexOf(this.videoSource);
             this.currentIndex = this.currentIndex + 1;
