@@ -76,7 +76,7 @@ class TrainConfig:
     group: str = "DiffusionQL"
     name: str = "exp"
     reward_model_paths: list = field(default_factory=lambda: [])
-    keypoint_predictor_path: str = None
+    keypoint_predictor_path: str = ""
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         # self.name = f"{self.name}-{self.env}"

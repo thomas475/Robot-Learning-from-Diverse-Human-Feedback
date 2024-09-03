@@ -284,7 +284,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
     # initialize logger
     log_dir = os.path.join(
         Path().cwd(), __LOGS__, cfg.env, 
-        'epoch_' + str(cfg.n_epochs) + '_query_' + str(num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
+        'epoch_' + str(cfg.n_epochs) + '_query_' + str(cfg.num_query) + '_len_' + str(len_query) + '_seed_' + str(cfg.seed)
     )
     model_dir = os.path.join(log_dir, 'models')
     if cfg.fake_label:
