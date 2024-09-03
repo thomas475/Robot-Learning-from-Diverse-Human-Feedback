@@ -87,6 +87,7 @@ def main(args):
                 if start_idx not in human_label:
                     human_label[start_idx] = []
                 human_label[start_idx].extend([start_idx + keypoint for keypoint in label['1']])
+            human_label = {k: v for k, v in human_label.items() if v} # remove cases with no keypoints
         if feedback_type == 'visual':
             human_label = {}
             for query, label in enumerate(parsed_labels):
