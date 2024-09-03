@@ -1,5 +1,4 @@
 env: "kitchen-complete-v0"
-seed: 0
 feedback_type: [
     "comparative",
     # "attribute",

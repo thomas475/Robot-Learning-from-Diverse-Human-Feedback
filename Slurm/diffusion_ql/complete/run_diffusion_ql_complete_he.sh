@@ -2,9 +2,9 @@
 #SBATCH --ntasks=1
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=40
-#SBATCH --job-name=iql
+#SBATCH --job-name=diffusion_ql
 
 module load devel/miniconda
 conda activate rlhf
 cd /home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/algorithms/offline/
-python3 diffusion_ql.py --config "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/basic/complete_he.yaml"
+python3 diffusion_ql.py --config "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/basic/complete_he.yaml" --log_dir $TMPDIR

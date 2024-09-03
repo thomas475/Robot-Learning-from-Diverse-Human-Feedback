@@ -7,4 +7,4 @@
 module load devel/miniconda
 conda activate rlhf
 cd /home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/rlhf
-python3 train_model.py --config "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/auxiliary_models/mixed_he.yaml"
+python3 train_model.py --config "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/auxiliary_models/mixed_he.yaml" --log_dir $TMPDIR

@@ -1,5 +1,4 @@
 env: "kitchen-partial-v0"
-seed: 0
 reward_model_paths:
   # - "../../rlhf/model_logs/kitchen-partial-v0/epoch_1000_query_200_len_100_seed_0/models/human_comparative_reward_mlp.pt"
   - "../../rlhf/model_logs/kitchen-partial-v0/epoch_1000_query_200_len_100_seed_0/models/human_evaluative_reward_mlp.pt"

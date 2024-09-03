@@ -1,5 +1,4 @@
 env: "kitchen-mixed-v0"
-seed: 0
 feedback_type: [
     # "comparative",
     # "attribute",

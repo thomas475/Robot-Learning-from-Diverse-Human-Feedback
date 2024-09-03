@@ -1,5 +1,4 @@
 env: "kitchen-partial-v0"
-seed: 0
 feedback_type: [
     # "comparative",
     # "attribute",

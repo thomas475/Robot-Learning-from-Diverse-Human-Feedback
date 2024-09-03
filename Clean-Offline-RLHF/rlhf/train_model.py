@@ -57,8 +57,9 @@ class TrainConfig:
     # misc
     seed: int = 0
     save_model: bool = True
+    log_dir: str = None
     use_wandb: bool = True
-    wandb_project: str = "Uni-RLHF"
+    wandb_project: str = "Uni-RLHF-Auxiliary-Models"
     wandb_group: str = "AuxiliaryModel"
     wandb_name: str = ""
     device: str = "cpu"
@@ -296,6 +297,7 @@ def _train(action_dim, cfg, dataset, label_data, observation_dim, feedback_type=
         label_type = 'human'
     model_name = f"{label_type}_{feedback_type}_reward_{cfg.structure}"
     print("Logging directory:", log_dir)
+    log_dir = cfg.log_dir if cfg.log_dir else log_dir
     L = logger.Logger(log_dir, cfg)
 
     # train reward model
