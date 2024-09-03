@@ -1,9 +1,10 @@
 env: "kitchen-complete-v0"
 seed: 0
+n_epochs: 1000
 feedback_type: [
-    "comparative",
+    # "comparative",
     # "attribute",
-    # "evaluative",
+    "evaluative",
     # "keypoint",
     # "visual"
 ]
@@ -12,3 +13,4 @@ len_query: 100
 fake_label: false
 relabel_human_labels: false 
 use_wandb: false
+save_model: false

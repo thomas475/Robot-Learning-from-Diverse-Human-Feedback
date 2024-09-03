@@ -174,7 +174,9 @@ class RewardModel(object):
             boundaries[n_rating_categories] = sorted_r_tilde[-1]
             for i in range(1, n_rating_categories):
                 cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
-                boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
+                boundaries[i] = sorted_r_tilde[cumulative_count]
+                # cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
+                # boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
             
             # compute loss
             curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)
@@ -475,7 +477,9 @@ class TransformerRewardModel(RewardModel):
             boundaries[n_rating_categories] = sorted_r_tilde[-1]
             for i in range(1, n_rating_categories):
                 cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
-                boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
+                boundaries[i] = sorted_r_tilde[cumulative_count]
+                # cumulative_count = np.sum(category_counts[:i]).astype(int) - 1
+                # boundaries[i] = (sorted_r_tilde[cumulative_count] + sorted_r_tilde[cumulative_count + 1]) / 2
             
             # compute loss
             curr_loss = self.multiclassXEnt_loss(r_tilde, labels, boundaries)

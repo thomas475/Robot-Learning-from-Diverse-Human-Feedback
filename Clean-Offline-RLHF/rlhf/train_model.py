@@ -47,7 +47,7 @@ class TrainConfig:
     fake_label_data_dir: str = "../generated_fake_labels/"
 
     # learning
-    ensemble_size: int = 1
+    ensemble_size: int = 3
     batch_size: int = 64
     n_epochs: int = 1000
     num_query: int = 200 # original 2000
