@@ -108,9 +108,9 @@ class RewardModel(object):
                 train_metrics.update({f"ensemble_{i}_acc": np.mean(ensemble_acc[i])})
             self.logger.log(train_metrics)
 
-            # early stop
-            if np.mean(ensemble_acc) > 0.968 and "antmaze" not in self.task:
-                break
+            # # early stop
+            # if np.mean(ensemble_acc) > 0.968 and "antmaze" not in self.task:
+            #     break
 
     def _train(self, batch, member, feedback_type='comparative'):
         if feedback_type in ['comparative', 'attribute']:

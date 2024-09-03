@@ -112,9 +112,9 @@ class KeypointPredictorModel(object):
                 train_metrics.update({f"ensemble_{i}_mse": np.mean(ensemble_mse[i])})
             self.logger.log(train_metrics)
 
-            # early stop if change in mse is lower tham 0.1 %
-            if (1 - np.mean(ensemble_mse) / prev_mse) < 0.001 and "antmaze" not in self.task:
-                break
+            # # early stop if change in mse is lower tham 0.1 %
+            # if (1 - np.mean(ensemble_mse) / prev_mse) < 0.001 and "antmaze" not in self.task:
+            #     break
 
             prev_mse = ensemble_mse
 

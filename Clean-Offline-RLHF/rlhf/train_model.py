@@ -80,15 +80,16 @@ class TrainConfig:
     attr_map_n_pseudo_labels: int = 10 # number of generated pseudo labels
     attr_map_threshold: float = 0.1 # threshold to determine when trajectories have equal preference
     def __post_init__(self):
+        label_type = "human" if not self.fake_label else "scripted"
         if len(self.feedback_type) >= 1:
             self.wandb_name = "_".join([
                 self.env, 
                 self.wandb_group, 
-                "_".join([feedback_type.capitalize() for feedback_type in self.feedback_type]), 
+                "_".join([label_type.capitalize() + feedback_type.capitalize() for feedback_type in self.feedback_type]), 
                 str(self.seed)
             ])
         else:
-            self.wandb_name = "_".join([self.env, self.wandb_group, str(self.seed)])
+            self.wandb_name = "_".join([self.env, self.wandb_group, label_type.capitalize(), str(self.seed)])
 
 def set_seed(seed):
     random.seed(seed)
