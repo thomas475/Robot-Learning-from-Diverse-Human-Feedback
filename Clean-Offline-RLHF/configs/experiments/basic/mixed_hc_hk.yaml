@@ -1,7 +1,0 @@
-env: "kitchen-mixed-v0"
-reward_model_paths:
-  - "../../rlhf/model_logs/kitchen-mixed-v0/epoch_1000_query_200_len_100_seed_0/models/human_comparative_reward_mlp.pt"
-  # - "../../rlhf/model_logs/kitchen-mixed-v0/epoch_1000_query_200_len_100_seed_0/models/human_evaluative_reward_mlp.pt"
-  # - "../../rlhf/model_logs/kitchen-mixed-v0/epoch_1000_query_200_len_100_seed_0/models/relabeled_comparative_reward_mlp.pt"
-  # - "../../rlhf/model_logs/kitchen-mixed-v0/epoch_1000_query_200_len_100_seed_0/models/relabeled_evaluative_reward_mlp.pt"
-keypoint_predictor_path: "../../rlhf/model_logs/kitchen-mixed-v0/epoch_1000_query_25_len_100_seed_0/models/human_keypoint_predictor_mlp.pt"

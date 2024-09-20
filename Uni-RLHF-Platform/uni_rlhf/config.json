@@ -1,5 +1,0 @@
-{
-    "baseUrl": "localhost",
-    "flaskPort": "8502",
-    "vuePort": "8503"
-}

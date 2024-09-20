@@ -1,1 +1,0 @@
-nohup python run.py &
