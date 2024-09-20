@@ -1,0 +1,740 @@
+[
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            60.0,
+            45.0,
+            15.0
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            57.49999999999999,
+            45.0,
+            27.500000000000004
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            47.5,
+            42.5,
+            30.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [],
+        "scores": [
+            47.5,
+            40.0,
+            30.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [],
+        "scores": [
+            45.0,
+            22.5,
+            20.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            45.0,
+            22.5,
+            15.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            45.0,
+            35.0,
+            32.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            40.0,
+            32.5,
+            27.500000000000004
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [],
+        "scores": [
+            40.0,
+            35.0,
+            30.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            37.5,
+            35.0,
+            35.0
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            37.5,
+            12.5,
+            2.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            37.5,
+            30.0,
+            10.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            37.5,
+            27.500000000000004,
+            27.500000000000004
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            35.0,
+            25.0,
+            20.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            35.0,
+            17.5,
+            17.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            35.0,
+            32.5,
+            30.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            35.0,
+            35.0,
+            12.5
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            32.5,
+            30.0,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            32.5,
+            27.500000000000004,
+            27.500000000000004
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            32.5,
+            27.500000000000004,
+            7.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            32.5,
+            25.0,
+            25.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            27.500000000000004,
+            17.5,
+            15.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            25.0,
+            17.5,
+            5.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            20.0,
+            15.0,
+            5.0
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            17.5,
+            10.0,
+            5.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            15.0,
+            12.5,
+            2.5
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "IQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            85.0,
+            75.0,
+            65.0
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            67.5,
+            67.5,
+            57.49999999999999
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [],
+        "scores": [
+            62.5,
+            47.5,
+            42.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            57.49999999999999,
+            55.00000000000001,
+            47.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            55.00000000000001,
+            52.5,
+            50.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            52.5,
+            42.5,
+            40.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp"
+        ],
+        "scores": [
+            52.5,
+            32.5,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            52.5,
+            45.0,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            52.5,
+            52.5,
+            32.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            50.0,
+            47.5,
+            37.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            50.0,
+            40.0,
+            32.5
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            50.0,
+            50.0,
+            40.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            50.0,
+            42.5,
+            42.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            47.5,
+            47.5,
+            40.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [],
+        "scores": [
+            47.5,
+            45.0,
+            45.0
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            47.5,
+            42.5,
+            40.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            47.5,
+            40.0,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-mixed-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            47.5,
+            42.5,
+            35.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            45.0,
+            42.5,
+            32.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [],
+        "scores": [
+            45.0,
+            40.0,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            40.0,
+            12.5,
+            12.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            40.0,
+            37.5,
+            22.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledComparativeRewardMlp"
+        ],
+        "scores": [
+            37.5,
+            32.5,
+            32.5
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            37.5,
+            35.0,
+            35.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            35.0,
+            15.0,
+            15.0
+        ]
+    },
+    {
+        "environment": "kitchen-partial-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "RelabeledEvaluativeRewardMlp"
+        ],
+        "scores": [
+            32.5,
+            22.5,
+            20.0
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanComparativeRewardMlp",
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    },
+    {
+        "environment": "kitchen-complete-v0",
+        "algorithm": "DiffusionQL",
+        "auxiliary_models": [
+            "HumanEvaluativeRewardMlp",
+            "HumanKeypointPredictorMlp"
+        ],
+        "scores": [
+            NaN,
+            NaN,
+            NaN
+        ]
+    }
+]

@@ -1,0 +1,28 @@
+\begin{table}[t]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|r|>{\centering\arraybackslash}p{1.9cm}|>{\centering\arraybackslash}p{1.9cm}|>{\centering\arraybackslash}p{1.9cm}|}
+\hline
+\multirow{2}{*}{\textbf{method}} & \multicolumn{3}{c|}{\textbf{dataset}} \\
+\cline{2-4}
+& kitchen-complete-v0 & kitchen-partial-v0 & kitchen-mixed-v0 \\
+\hline
+BASE & 50.83 $\pm$ 8.50 & 35.83 $\pm$ 9.65 & 45.83 $\pm$ 1.18 \\
+HC & 64.17 $\pm$ 4.71 & 35.83 $\pm$ 12.47 & 53.33 $\pm$ 4.25 \\
+HE & $-$ & 36.67 $\pm$ 10.47 & 45.00 $\pm$ 5.40 \\
+HK & 40.00 $\pm$ 12.75 & 40.00 $\pm$ 5.40 & 43.33 $\pm$ 3.12 \\
+HC+HE & $-$ & 40.83 $\pm$ 7.17 & 45.00 $\pm$ 3.54 \\
+HC+HK & 21.67 $\pm$ 12.96 & 21.67 $\pm$ 9.43 & 52.50 $\pm$ 2.04 \\
+HE+HK & $-$ & 35.83 $\pm$ 1.18 & 45.00 $\pm$ 3.54 \\
+HC+HE+HK & $-$ & 33.33 $\pm$ 7.73 & 45.83 $\pm$ 9.43 \\
+RC & 46.67 $\pm$ 4.71 & 34.17 $\pm$ 2.36 & 45.00 $\pm$ 5.40 \\
+RE & 75.00 $\pm$ 8.16 & 25.00 $\pm$ 5.40 & 41.67 $\pm$ 5.14 \\
+\hline
+\textbf{average} & 49.72 $\pm$ 17.03 & 33.92 $\pm$ 5.77 & 46.25 $\pm$ 3.54 \\
+\hline
+\end{tabular}
+\vspace{0.1cm}
+\caption{Mean scores and deviations for the DiffusionQL algorithm with selected auxiliary models and combinations.}
+\label{tab:diffusionqlResults}
+\end{table}

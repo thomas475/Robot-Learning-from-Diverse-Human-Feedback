@@ -47,7 +47,7 @@ class TrainConfig:
     # Experiment
     device: str = "cpu"
     env: str = "kitchen-complete-v0"  # OpenAI gym environment name
-    seed: int = 44  # Sets Gym, PyTorch and Numpy seeds
+    seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
     eval_freq: int = int(5e2)  # How often (time steps) we evaluate - default int(5e3)
     n_episodes: int = 10 # How many episodes run during evaluation - default 10
     max_timesteps: int = int(1e6)  # Max time steps to run environment - default int(1e6)

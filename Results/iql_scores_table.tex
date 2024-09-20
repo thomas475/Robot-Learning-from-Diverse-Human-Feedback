@@ -1,0 +1,28 @@
+\begin{table}[t]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|r|>{\centering\arraybackslash}p{1.9cm}|>{\centering\arraybackslash}p{1.9cm}|>{\centering\arraybackslash}p{1.9cm}|}
+\hline
+\multirow{2}{*}{\textbf{method}} & \multicolumn{3}{c|}{\textbf{dataset}} \\
+\cline{2-4}
+& kitchen-complete-v0 & kitchen-partial-v0 & kitchen-mixed-v0 \\
+\hline
+BASE & 35.00 $\pm$ 4.08 & 29.17 $\pm$ 11.24 & 39.17 $\pm$ 7.17 \\
+HC & 28.33 $\pm$ 4.25 & 27.50 $\pm$ 12.75 & 10.00 $\pm$ 5.40 \\
+HE & $-$ & 35.83 $\pm$ 1.18 & 15.83 $\pm$ 8.25 \\
+HK & 40.00 $\pm$ 18.71 & 33.33 $\pm$ 5.14 & 22.50 $\pm$ 10.80 \\
+HC+HE & $-$ & 26.67 $\pm$ 6.24 & 13.33 $\pm$ 6.24 \\
+HC+HK & 43.33 $\pm$ 12.30 & 32.50 $\pm$ 2.04 & 40.00 $\pm$ 7.36 \\
+HE+HK & $-$ & 29.17 $\pm$ 2.36 & 25.83 $\pm$ 11.61 \\
+HC+HE+HK & $-$ & 27.50 $\pm$ 3.54 & 30.83 $\pm$ 4.71 \\
+RC & 17.50 $\pm$ 14.72 & 23.33 $\pm$ 8.25 & 27.50 $\pm$ 10.61 \\
+RE & 10.83 $\pm$ 5.14 & 20.00 $\pm$ 5.40 & 37.50 $\pm$ 5.40 \\
+\hline
+\textbf{average} & 29.17 $\pm$ 11.73 & 28.50 $\pm$ 4.45 & 26.25 $\pm$ 10.29 \\
+\hline
+\end{tabular}
+\vspace{0.1cm}
+\caption{Mean scores and deviations for the IQL algorithm with selected auxiliary models and combinations.}
+\label{tab:iqlResults}
+\end{table}
