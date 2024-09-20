@@ -765,13 +765,13 @@
       "type": "integer",
       "default": 200,
       "minimum": 84,
-      "maximum": 200
+      "maximum": 1000
   },
   "video_height": {
       "type": "integer",
       "default": 200,
       "minimum": 84,
-      "maximum": 200
+      "maximum": 1000
   },
   "fps": {
     "type": "integer",

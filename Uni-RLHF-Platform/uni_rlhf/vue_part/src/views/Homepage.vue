@@ -495,13 +495,13 @@ export default {
                     "type": "integer",
                     "default": 500,
                     "minimum": 84,
-                    "maximum": 500
+                    "maximum": 1000
                 },
                 "video_height": {
                     "type": "integer",
                     "default": 500,
                     "minimum": 84,
-                    "maximum": 500
+                    "maximum": 1000
                 },
                 "fps": {
                     "type": "integer",
