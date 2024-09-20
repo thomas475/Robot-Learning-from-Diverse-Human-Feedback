@@ -1,0 +1,6 @@
+[submodule "Uni-RLHF-Platform"]
+	path = Uni-RLHF-Platform
+	url = https://github.com/thomas475/Uni-RLHF-Platform.git
+[submodule "Clean-Offline-RLHF"]
+	path = Clean-Offline-RLHF
+	url = https://github.com/thomas475/Clean-Offline-RLHF.git
