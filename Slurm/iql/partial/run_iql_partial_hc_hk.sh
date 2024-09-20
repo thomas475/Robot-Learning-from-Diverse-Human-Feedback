@@ -6,5 +6,5 @@
 
 module load devel/miniconda
 conda activate rlhf
-cd /home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/algorithms/offline/
-python3 iql_p.py --config "/home/kit/anthropomatik/px6987/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/basic/partial_hc_hk.yaml" --log_dir $TMPDIR
+cd [base-directory]/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/algorithms/offline/
+python3 iql_p.py --config "[base-directory]/Robot-Learning-from-Diverse-Human-Feedback/Clean-Offline-RLHF/configs/experiments/basic/partial_hc_hk.yaml" --log_dir $TMPDIR

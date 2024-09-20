@@ -9,7 +9,7 @@
 ·
 <a href="https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link">Datasets</a>
 ·
-<a href="https://github.com/TJU-DRL-LAB/Uni-RLHF">Clean Offline RLHF</a>
+<a href="https://github.com/thomas475/Uni-RLHF">Clean Offline RLHF</a>
 </p>
 
 This is the official PyTorch implementation of the paper "[Uni-RLHF: Universal Platform and Benchmark Suite for Reinforcement Learning with Diverse Human Feedback](https://arxiv.org/abs/2402.02423)". Clean-Offline-RLHF is an Offline Reinforcement Learning with Human Feedback codebase that provides high-quality and realistic human feedback implementations of offline RL algorithms. 

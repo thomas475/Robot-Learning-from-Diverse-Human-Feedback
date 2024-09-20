@@ -1,34 +1,18 @@
 # Robot Learning from Diverse Human Feedback
- 
-### Create Conda environment
-`conda create --name rlhf`
-`conda activate rlhf`
 
-### Install Requirements
-`pip install -r requirements.txt`
+This repository contains the code for my project **"Robot Learning from Diverse Human Feedback"**, developed as part of the **Interactive Learning Seminar and Practical Course** at the **Intuitive Robots Lab (IRL), Karlsruhe Institute of Technology (KIT)** during the summer semester of 2024.
 
-### Install D4RL
-`cd Uni-RLHF-Platform/d4rl
-pip install -e .`
+I extended the Uni-RLHF system by implementing learning from **attribute, evaluative, and keypoint feedback**. Additionally, I integrated support for **learning from multiple feedback types simultaneously**. I also added a challenging robot task with the **Franka kitchen domain**, along with a **diffusion-based offline reinforcement learning algorithm** for benchmarking purposes.
 
-### Install hdf5
-`conda install anaconda::hdf5`
+## Installation
 
-### Install PyTorch
-With GPU
-`pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117`
-CPU only
-`pip install torch==1.13.1+cpu torchvision==0.14.1+cpu torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cpu`
+As the Uni-RLHF system is originally split into two repositories, we have also put our forks of the annotation platform and offline RL benchmarking framework in separate repositories.
 
-### Install Mujoco
-- Download the MuJoCo library:
-`wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz`
-- Create the MuJoCo folder:
-`mkdir ~/.mujoco`
-- Extract the library to the MuJoCo folder:
-`tar -xvf mujoco210-linux-x86_64.tar.gz -C ~/.mujoco/`
-- Add environment variables (run `nano ~/.bashrc`):
-`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mujoco210/bin
-export MUJOCO_GL=egl`
-- Install dependencies:
-`conda install -c conda-forge patchelf fasteners cython==0.29.37 cffi pyglfw libllvm11 imageio glew glfw mesalib`
+To fully utilize this system, you need to install both repositories:
+
+1. First, follow the installation instructions for the **Uni-RLHF Platform**.
+2. Then, proceed with the **Clean-Offline-RLHF** installation.
+
+## Slurm Scripts
+
+Our experiments were conducted on the **BwUniCluster**, which uses the **Slurm Workload Manager** for job scheduling. Our Slurm scripts are provided in this repository. If you also use this cluster or another system that employs Slurm, these scripts can be quite helpful.

@@ -39,10 +39,10 @@
 ·
 <a href="https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link">Datasets</a>
 ·
-<a href="https://github.com/pickxiguapi/Clean-Offline-RLHF">Clean Offline RLHF</a>
+<a href="https://github.com/thomas475/Clean-Offline-RLHF">Clean Offline RLHF</a>
 </p>
 
-This is the **Uni-RLHF** platform implementation of the paper ***Uni-RLHF: Universal Platform and Benchmark Suite for Reinforcement Learning with Diverse Human Feedback*** by [Yifu Yuan](https://yifu-yuan.github.io/), [Jianye Hao](http://www.icdai.org/jianye.html), [Yi Ma](https://mayi1996.top/), [Zibin Dong](https://zibindong.github.io/), [Hebin Liang](), [Jinyi Liu](), [Zhixin Feng](), [Kai Zhao](), [Yan Zheng](https://yanzzzzz.github.io/) with contributions by [Thomas Frank](). Uni-RLHF aims to provide a complete workflow from *real human feedback*, fostering progress in the development of RLHF in decision making domain. Here we develops a user-friendly annotation interface tailored to various feedback types, compatible with a wide range of mainstream RL environments. We then establish a systematic pipeline of crowdsourced annotations, resulting in [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Also, we provide **offline RLHF baselines** using collected feedback datasets and various design choice in the [Clean Offline RLHF](https://github.com/pickxiguapi/Clean-Offline-RLHF).
+This is the **Uni-RLHF** platform implementation of the paper ***Uni-RLHF: Universal Platform and Benchmark Suite for Reinforcement Learning with Diverse Human Feedback*** by [Yifu Yuan](https://yifu-yuan.github.io/), [Jianye Hao](http://www.icdai.org/jianye.html), [Yi Ma](https://mayi1996.top/), [Zibin Dong](https://zibindong.github.io/), [Hebin Liang](), [Jinyi Liu](), [Zhixin Feng](), [Kai Zhao](), [Yan Zheng](https://yanzzzzz.github.io/) with contributions by [Thomas Frank](). Uni-RLHF aims to provide a complete workflow from *real human feedback*, fostering progress in the development of RLHF in decision making domain. Here we develops a user-friendly annotation interface tailored to various feedback types, compatible with a wide range of mainstream RL environments. We then establish a systematic pipeline of crowdsourced annotations, resulting in [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Also, we provide **offline RLHF baselines** using collected feedback datasets and various design choice in the [Clean Offline RLHF](https://github.com/thomas475/Clean-Offline-RLHF).
 
 <p align="center">
     <br>
@@ -312,7 +312,7 @@ and how they can be encoded. Additionally, we briefly outline the potential form
 
 ### Offline RLHF Datasets and Benchmark
 
-Thanks to Uni-RLHF, we establish a systematic pipeline of crowdsourced annotations, resulting in an open-source and reuseable [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Then, we conduct offline RL baselines using collected feedback datasets, we refer to **offline RLHF baselines** in the [sister repository](https://github.com/pickxiguapi/Clean-Offline-RLHF). **We wish to
+Thanks to Uni-RLHF, we establish a systematic pipeline of crowdsourced annotations, resulting in an open-source and reuseable [**large-scale annotated dataset**](https://drive.google.com/drive/folders/1JMWyl0iAm2JJ5pOBW5M9kTOj6pJn8H3N?usp=drive_link) (≈15 million steps). Then, we conduct offline RL baselines using collected feedback datasets, we refer to **offline RLHF baselines** in the [sister repository](https://github.com/thomas475/Clean-Offline-RLHF). **We wish to
 build valuable open-source platforms, datasets, and baselines to facilitate the development of more robust and reliable RLHF solutions for decision making based on realistic human feedback.**
 
 _For more examples, please refer to the [Documentation](https://example.com)_
