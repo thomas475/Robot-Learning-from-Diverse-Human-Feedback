@@ -10,8 +10,9 @@ As the Uni-RLHF system is originally split into two repositories, we have also p
 
 To fully utilize this system, you need to install both repositories:
 
-1. First, follow the installation instructions for the **Uni-RLHF Platform**.
-2. Then, proceed with the **Clean-Offline-RLHF** installation.
+1. Clone the entire repository along with its submodules by running `git clone --recurse-submodules https://github.com/thomas475/Robot-Learning-from-Diverse-Human-Feedback.git`.
+2. Follow the installation instructions for the **Uni-RLHF Platform**.
+3. Proceed with the **Clean-Offline-RLHF** installation.
 
 ## Slurm Scripts
 
