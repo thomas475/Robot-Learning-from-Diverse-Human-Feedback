@@ -1,4 +1,5 @@
 env: "kitchen-complete-v0"
+wandb_project: "Uni-RLHF-Debugging"
 n_epochs: 10
 seed: 0
 feedback_type: [

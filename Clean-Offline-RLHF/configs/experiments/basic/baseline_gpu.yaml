@@ -1,5 +1,4 @@
 device: "cuda"
 env: "kitchen-complete-v0"
-seed: 0
 reward_model_paths: []
 keypoint_predictor_path: ""

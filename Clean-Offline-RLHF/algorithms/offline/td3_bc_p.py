@@ -52,11 +52,12 @@ class TrainConfig:
     normalize: bool = True  # Normalize states
     normalize_reward: bool = False  # Normalize reward - default False
     # Wandb logging
-    project: str = "Uni-RLHF"
+    log_dir: str = None
+    project: str = "Uni-RLHF-TD3BC"
     group: str = "TD3BC"
     name: str = "exp"
     reward_model_paths: list = field(default_factory=lambda: [])
-    keypoint_predictor_path: str = None
+    keypoint_predictor_path: str = ""
 
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
@@ -192,12 +193,13 @@ def set_seed(
     torch.use_deterministic_algorithms(deterministic_torch)
 
 
-def wandb_init(config: dict) -> None:
+def wandb_init(config: dict, dir=None) -> None:
     wandb.init(
         config=config,
         project=config["project"],
         group=config["group"],
         name=config["name"],
+        dir=dir,
         # id=str(uuid.uuid4()),
     )
     wandb.run.save()
@@ -506,7 +508,7 @@ def train(config: TrainConfig):
         trainer.load_state_dict(torch.load(policy_file))
         actor = trainer.actor
 
-    wandb_init(asdict(config))
+    wandb_init(asdict(config), config.log_dir)
 
     evaluations = []
     for t in range(int(config.max_timesteps)):

@@ -1,0 +1,6 @@
+env: "kitchen-complete-v0"
+project: "Uni-RLHF-Debugging"
+max_timesteps: 10
+seed: 0
+reward_model_paths: []
+keypoint_predictor_path: ""

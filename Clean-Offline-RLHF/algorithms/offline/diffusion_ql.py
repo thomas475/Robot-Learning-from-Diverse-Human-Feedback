@@ -47,7 +47,7 @@ class TrainConfig:
     # Experiment
     device: str = "cpu"
     env: str = "kitchen-complete-v0"  # OpenAI gym environment name
-    seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
+    seed: int = 44  # Sets Gym, PyTorch and Numpy seeds
     eval_freq: int = int(5e2)  # How often (time steps) we evaluate - default int(5e3)
     n_episodes: int = 10 # How many episodes run during evaluation - default 10
     max_timesteps: int = int(1e6)  # Max time steps to run environment - default int(1e6)
@@ -72,11 +72,12 @@ class TrainConfig:
     lr_maxt=1000
     grad_norm=10
     # Wandb logging
-    project: str = "Uni-RLHF"
+    log_dir: str = None
+    project: str = "Uni-RLHF-DiffusionQL-Extended"
     group: str = "DiffusionQL"
     name: str = "exp"
     reward_model_paths: list = field(default_factory=lambda: [])
-    keypoint_predictor_path: str = None
+    keypoint_predictor_path: str = ""
     def __post_init__(self):
         # self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         # self.name = f"{self.name}-{self.env}"
@@ -149,12 +150,13 @@ def set_seed(
     torch.use_deterministic_algorithms(deterministic_torch)
 
 
-def wandb_init(config: dict) -> None:
+def wandb_init(config: dict, dir=None) -> None:
     wandb.init(
         config=config,
         project=config["project"],
         group=config["group"],
         name=config["name"],
+        dir=dir,
         # id=str(uuid.uuid4()),
     )
     wandb.run.save()
@@ -486,7 +488,7 @@ def train(config: TrainConfig):
         trainer.load_model(torch.load(policy_file))
     actor = trainer.actor
 
-    wandb_init(asdict(config))
+    wandb_init(asdict(config), config.log_dir)
 
     evaluations = []
     for t in range(int(config.max_timesteps)):
